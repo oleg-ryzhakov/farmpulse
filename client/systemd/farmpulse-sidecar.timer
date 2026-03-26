@@ -1,0 +1,11 @@
+[Unit]
+Description=Run FarmPulse sidecar periodically (interval overridden by firstrun_farmpulse)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=30s
+Unit=farmpulse-sidecar.service
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

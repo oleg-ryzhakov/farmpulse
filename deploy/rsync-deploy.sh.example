@@ -7,7 +7,7 @@ set -euo pipefail
 DEPLOY_HOST="${DEPLOY_HOST:-user@farmpulse.its-good.ru}"
 REMOTE_PATH="${REMOTE_PATH:-/var/www/farmpulse}"
 
-# Локально должны быть каталоги web/ и api/
+# Локально должны быть каталоги web/, api/, client/
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 RSYNC_OPTS=(
@@ -28,5 +28,8 @@ rsync "${RSYNC_OPTS[@]}" "${ROOT}/web/" "${DEPLOY_HOST}:${REMOTE_PATH}/web/"
 
 echo "rsync api/ -> ${DEPLOY_HOST}:${REMOTE_PATH}/api/"
 rsync "${RSYNC_OPTS[@]}" "${ROOT}/api/" "${DEPLOY_HOST}:${REMOTE_PATH}/api/"
+
+echo "rsync client/ -> ${DEPLOY_HOST}:${REMOTE_PATH}/client/"
+rsync "${RSYNC_OPTS[@]}" "${ROOT}/client/" "${DEPLOY_HOST}:${REMOTE_PATH}/client/"
 
 echo "OK. При необходимости: ssh ${DEPLOY_HOST} 'sudo systemctl reload nginx; sudo systemctl reload php8.3-fpm'"

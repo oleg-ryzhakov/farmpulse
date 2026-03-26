@@ -1,0 +1,9 @@
+[Unit]
+Description=FarmPulse sidecar (send stats to FarmPulse; does not touch Hive cloud)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/farmpulse/bin/sidecar.sh
+User=root
