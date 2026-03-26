@@ -1,0 +1,8 @@
+[
+  { "id": 1, "symbol": "ETC", "name": "Ethereum Classic", "algorithm": "etchash" },
+  { "id": 2, "symbol": "RVN", "name": "Ravencoin", "algorithm": "kawpow" },
+  { "id": 3, "symbol": "ERG", "name": "Ergo", "algorithm": "autolykos2" },
+  { "id": 4, "symbol": "KAS", "name": "Kaspa", "algorithm": "kheavyhash" },
+  { "id": 5, "symbol": "BEAM", "name": "Beam", "algorithm": "beamhash" }
+]
+

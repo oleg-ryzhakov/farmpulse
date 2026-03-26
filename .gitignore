@@ -1,0 +1,10 @@
+# Секреты и runtime (API)
+api/v2/farms/config.json
+api/v2/requests.log
+api/v2/market/*.cache.json
+api/v2/market/wallets.json
+api/v2/market/scrape-*.log
+
+# OS
+Thumbs.db
+.DS_Store

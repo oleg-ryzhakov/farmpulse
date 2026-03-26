@@ -1,0 +1,377 @@
+        const API = (typeof window.API_BASE === 'string' ? window.API_BASE.replace(/\/$/, '') : '/api');
+
+        let currentFarmId = '1';
+        // ╨Ш╨╜╤В╨╡╤А╨▓╨░╨╗ ╨░╨▓╤В╨╛╨╛╨▒╨╜╨╛╨▓╨╗╨╡╨╜╨╕╤П ╤Б╨┐╨╕╤Б╨║╨░ (╨┐╨╛ ╤Г╨╝╨╛╨╗╤З╨░╨╜╨╕╤О 30╤Б). ╨Я╨╛╤А╨╛╨│ ╨╛╨╜╨╗╨░╨╣╨╜ тАФ ╨║╨╛╨╜╤Б╤В╨░╨╜╤В╨░ 30╤Б
+        const ONLINE_THRESHOLD_MS = 30000;
+        let refreshIntervalMs = parseInt(localStorage.getItem('refreshIntervalMs') || '30000', 10);
+        let refreshTimer = null;
+        // ╨е╤А╨░╨╜╨╡╨╜╨╕╨╡ ╨░╨║╤В╨╕╨▓╨╜╤Л╤Е tooltipтАС╨╕╨╜╤Б╤В╨░╨╜╤Б╨╛╨▓, ╤З╤В╨╛╨▒╤Л ╨║╨╛╤А╤А╨╡╨║╤В╨╜╨╛ ╨┐╨╡╤А╨╡╤Б╨╛╨╖╨┤╨░╨▓╨░╤В╤М ╨╕╤Е ╨┐╨╛╤Б╨╗╨╡ ╨┐╨╡╤А╨╡╤А╨╕╤Б╨╛╨▓╨║╨╕ ╤В╨░╨▒╨╗╨╕╤Ж╤Л
+        let tooltipInstances = [];
+
+        function humanizeInterval(ms) {
+            if (ms < 60000) return (ms/1000) + 's';
+            if (ms % 3600000 === 0) return (ms/3600000) + 'h';
+            return (ms/60000) + 'm';
+        }
+
+        let countdownTimer = null;
+        let nextRefreshDeadline = null;
+
+        function startCountdown() {
+            if (countdownTimer) clearInterval(countdownTimer);
+            nextRefreshDeadline = Date.now() + refreshIntervalMs;
+            updateCountdownLabel();
+            countdownTimer = setInterval(updateCountdownLabel, 1000);
+        }
+
+        function updateCountdownLabel() {
+            const remainingMs = Math.max(0, nextRefreshDeadline - Date.now());
+            const seconds = Math.ceil(remainingMs / 1000);
+            document.getElementById('refreshCountdownLabel').textContent = (seconds > 0 ? seconds : 0) + 's';
+            if (remainingMs <= 0) {
+                // Trigger refresh and restart cycle
+                loadFarms();
+                nextRefreshDeadline = Date.now() + refreshIntervalMs;
+            }
+        }
+
+        function setRefreshInterval(ms) {
+            refreshIntervalMs = ms;
+            localStorage.setItem('refreshIntervalMs', String(ms));
+            document.getElementById('refreshCountdownLabel').textContent = humanizeInterval(ms);
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = setInterval(loadFarms, refreshIntervalMs);
+            startCountdown();
+        }
+
+        function parseLastSeen(s) {
+            if (!s) return null;
+            const parts = s.split(' ');
+            if (parts.length !== 2) return null;
+            const [y,m,d] = parts[0].split('-').map(Number);
+            const [hh,mm,ss] = parts[1].split(':').map(Number);
+            return new Date(y, (m||1)-1, d||1, hh||0, mm||0, ss||0);
+        }
+
+        // ╨Ч╨░╨│╤А╤Г╨╖╨║╨░ ╤Б╨┐╨╕╤Б╨║╨░ ╤Д╨╡╤А╨╝
+        function loadFarms() {
+            return fetch(API + '/v2/farms/farms.php')
+                .then(res => res.json())
+                .then(data => {
+                    const select = document.getElementById('farmSelect');
+                    select.innerHTML = '';
+                    const farms = data.farms || [];
+                    farms.forEach(f => {
+                        const opt = document.createElement('option');
+                        opt.value = f.id;
+                        opt.textContent = `#${f.id} тАФ ${f.name}`;
+                        select.appendChild(opt);
+                    });
+                    if (farms.length > 0) {
+                        currentFarmId = farms[0].id;
+                        select.value = currentFarmId;
+                    }
+                    document.getElementById('farms-count').textContent = String(farms.length);
+                    const now = Date.now();
+                    const onlineCount = farms.filter(f => {
+                        const dt = parseLastSeen(f.last_seen_at);
+                        if (!dt) return false;
+                        return (now - dt.getTime()) <= ONLINE_THRESHOLD_MS;
+                    }).length;
+                    document.getElementById('workers-count').textContent = String(onlineCount);
+
+                    // Render all farms into the table
+                    const tableBody = document.getElementById('workers-table-body');
+                    tableBody.innerHTML = '';
+                    farms.forEach(farm => {
+                        const dt = parseLastSeen(farm.last_seen_at);
+                        const isOnline = dt ? ((now - dt.getTime()) <= ONLINE_THRESHOLD_MS) : false;
+                        const row = document.createElement('tr');
+                        const gpuDots = (farm.gpu_temps || []).map((t, idx) => {
+                            const temp = Number(t);
+                            const color = isNaN(temp) ? '#6c757d' : (temp >= 80 ? '#dc3545' : (temp >= 60 ? '#ffc107' : '#198754'));
+                            const title = `GPU ${idx} ${isNaN(temp) ? '-' : temp + '┬░C'}`;
+                            return `<span class="gpu-dot" style="background:${color}" data-bs-toggle="tooltip" data-bs-placement="top" title="${title}"></span>`;
+                        }).join('');
+                        row.innerHTML = `
+                            <td>${farm.id}</td>
+                            <td><a class="farm-link" href="farm.php?id=${encodeURIComponent(farm.id)}">${farm.name}</a></td>
+                            <td><span class="badge bg-${isOnline ? 'success' : 'danger'}">${isOnline ? 'online' : 'offline'}</span></td>
+                            <td>${gpuDots || '<span class="text-muted">-</span>'}</td>
+                            <td>${farm.last_seen_at ?? '-'}</td>
+                            <td>
+                                <div class="dropdown">
+                                  <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">Choose action</button>
+                                  <ul class="dropdown-menu dropdown-menu-dark">
+                                    <li><a class="dropdown-item" href="#" onclick="sendReboot('${farm.id}')">ЁЯФД Reboot</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="openEdit('${farm.id}','${farm.name.replace(/'/g, "&#39;")}')">тЬО Edit</a></li>
+                                    <li><a class="dropdown-item text-danger" href="#" onclick="deleteFarmById('${farm.id}')">ЁЯЧС Delete</a></li>
+                                  </ul>
+                                </div>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+
+                    // (Re)╨╕╨╜╨╕╤Ж╨╕╨░╨╗╨╕╨╖╨░╤Ж╨╕╤П tooltipтАС╨╛╨▓ ╨┐╨╛╤Б╨╗╨╡ ╨┐╨╛╨╗╨╜╨╛╨╣ ╨┐╨╡╤А╨╡╤А╨╕╤Б╨╛╨▓╨║╨╕ ╤В╨░╨▒╨╗╨╕╤Ж╤Л
+                    if (tooltipInstances.length) {
+                        tooltipInstances.forEach(inst => { try { inst.dispose && inst.dispose(); } catch(_){} });
+                        tooltipInstances = [];
+                    }
+                    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+                        try { tooltipInstances.push(new bootstrap.Tooltip(el, {container: 'body'})); } catch(_){}
+                    });
+                });
+        }
+
+        // ╨Ф╨╛╨▒╨░╨▓╨╗╨╡╨╜╨╕╨╡ ╤Д╨╡╤А╨╝╤Л
+        function addFarm() {
+            const name = document.getElementById('farmName').value;
+            const password = document.getElementById('farmPassword').value;
+            if (!name || !password) return;
+
+            fetch(API + '/v2/farms/farms.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, password })
+            })
+            .then(async res => {
+                if (!res.ok) { throw new Error('HTTP ' + res.status + ': ' + await res.text()); }
+                return res.json();
+            })
+            .then(() => {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addFarmModal'));
+                modal.hide();
+                document.getElementById('farmName').value = '';
+                document.getElementById('farmPassword').value = '';
+                loadFarms().then(loadWorkers);
+            })
+            .catch(err => alert('Failed to add farm: ' + err.message));
+        }
+
+        // --- Flight sheets (account level) ---
+        let selectedCoin = null;
+        async function loadCoins(initialQuery=''){
+            const url = API + '/v2/market/coins.php' + (initialQuery ? ('?q=' + encodeURIComponent(initialQuery) + '&limit=200') : '');
+            const res = await fetch(url); const data = await res.json();
+            const sel = document.getElementById('fsCoinSel');
+            if (!sel) return;
+            const current = sel.value;
+            sel.innerHTML = '<option value="">Choose coin</option>';
+            (data.data||[]).forEach(c=>{ const opt=document.createElement('option'); opt.value=c.symbol; opt.textContent = `${c.symbol} — ${c.name}`; opt.dataset.algorithm = c.algorithm||''; sel.appendChild(opt); });
+            if (current) sel.value = current;
+        }
+
+        async function onCoinChange(){
+            const sel = document.getElementById('fsCoinSel');
+            const symbol = sel.value; const algo = sel.options[sel.selectedIndex]?.dataset?.algorithm || '';
+            if (!symbol){ selectedCoin=null; return; }
+            selectedCoin = { symbol, algorithm: algo };
+            // enable selects
+            document.getElementById('fsWalletSel').disabled = false;
+            document.getElementById('fsPoolSel').disabled = false;
+            document.getElementById('fsMinerSel').disabled = false;
+            // wallets
+            await loadWalletsForCoin(symbol);
+            // pools
+            try {
+              const pools = await fetch(API + '/v2/market/pools.php?coin=' + encodeURIComponent(symbol)).then(r=>r.json());
+              const selP = document.getElementById('fsPoolSel'); selP.innerHTML = '<option value="">Choose pool</option>';
+              (pools.data||[]).forEach(p=>{ const opt=document.createElement('option'); opt.value=p.url?`${p.url}:${p.port||''}`:''; opt.textContent=p.name || (p.url||''); selP.appendChild(opt); });
+            } catch(_){ }
+            // miners
+            try {
+              const miners = await fetch(API + '/v2/market/miners.php?algorithm=' + encodeURIComponent(algo)).then(r=>r.json());
+              const selM = document.getElementById('fsMinerSel'); selM.innerHTML = '<option value="">Choose miner</option>';
+              (miners.data||[]).forEach(m=>{ const opt=document.createElement('option'); opt.value=m.name; opt.textContent=`${m.name} ${m.version||''}`.trim(); selM.appendChild(opt); });
+            } catch(_){ }
+        }
+
+        async function saveAccountFlight(){
+            if (!selectedCoin) { alert('Select coin first'); return; }
+            const payload = {
+                farm_id: currentFarmId,
+                miner: document.getElementById('fsMinerSel').value || document.getElementById('fsMiner')?.value?.trim() || '',
+                pool: document.getElementById('fsPoolSel').value || document.getElementById('fsPool')?.value?.trim() || '',
+                wallet: document.getElementById('fsWalletSel').value || document.getElementById('fsWallet')?.value?.trim() || '',
+                pass: document.getElementById('fsPass').value,
+                coin: (selectedCoin && selectedCoin.symbol) ? selectedCoin.symbol : '',
+                apply: false
+            };
+            const res = await fetch(API + '/v2/farms/flight.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            if (!res.ok) { alert('Failed: ' + await res.text()); return; }
+            alert('Flight sheet created (saved on farm for now)');
+        }
+        async function applyFlightToSelected(){
+            if (!selectedCoin) { alert('Select coin first'); return; }
+            const payload = {
+                farm_id: currentFarmId,
+                miner: document.getElementById('fsMinerSel').value || document.getElementById('fsMiner')?.value?.trim() || '',
+                pool: document.getElementById('fsPoolSel').value || document.getElementById('fsPool')?.value?.trim() || '',
+                wallet: document.getElementById('fsWalletSel').value || document.getElementById('fsWallet')?.value?.trim() || '',
+                pass: document.getElementById('fsPass').value,
+                coin: (selectedCoin && selectedCoin.symbol) ? selectedCoin.symbol : '',
+                apply: true
+            };
+            const res = await fetch(API + '/v2/farms/flight.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            if (!res.ok) { alert('Failed: ' + await res.text()); return; }
+            alert('Apply queued to selected farm');
+        }
+
+        async function promptAddWallet(){
+            if (!selectedCoin) { alert('Select coin first'); return; }
+            const address = prompt('Enter wallet address for ' + selectedCoin.symbol + ':');
+            if (!address) return;
+            const name = prompt('Optional name (label):', address) || address;
+            const res = await fetch(API + '/v2/market/wallets.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ coin: selectedCoin.symbol, name, address }) });
+            if (!res.ok) { alert('Failed: ' + await res.text()); return; }
+            // reload wallets list
+            loadWalletsForCoin(selectedCoin.symbol);
+        }
+
+        async function loadWalletsForCoin(symbol){
+            try {
+              const wallets = await fetch(API + '/v2/market/wallets.php?coin=' + encodeURIComponent(symbol)).then(r=>r.json());
+              const selW = document.getElementById('fsWalletSel'); selW.innerHTML = '<option value="">Choose wallet</option>';
+              (wallets.data||[]).forEach(w=>{ const opt=document.createElement('option'); opt.value=w.address; opt.textContent=w.name || w.address; selW.appendChild(opt); });
+              selW.disabled = false;
+            } catch(_){ /* ignore */ }
+        }
+
+        function deleteFarmById(id) {
+            if (!confirm('Delete this farm?')) return;
+            fetch(`${API}/v2/farms/workers.php?farm_id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+            .then(() => loadFarms())
+            .catch(err => console.error(err));
+        }
+
+        function sendReboot(id) {
+            if (!confirm('Reboot this farm now?')) return;
+            fetch(API + '/v2/farms/command.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ farm_id: id, action: 'reboot' })
+            })
+            .then(async res => {
+                if (!res.ok) throw new Error(await res.text());
+                return res.json();
+            })
+            .then(() => alert('Reboot command queued'))
+            .catch(err => alert('Failed to queue command: ' + err.message));
+        }
+
+        function openEdit(id, name) {
+            document.getElementById('editFarmId').value = id;
+            document.getElementById('editFarmTitle').textContent = `Edit ${name}`;
+            // Load current password
+            fetch(`${API}/v2/farms/workers.php?farm_id=${encodeURIComponent(id)}`)
+                .then(r => r.json()).then(data => {
+                    document.getElementById('editFarmPassword').value = data?.farm?.password || '';
+                    document.getElementById('editFarmName').value = data?.farm?.name || name || '';
+                    const modal = new bootstrap.Modal(document.getElementById('editFarmModal'));
+                    modal.show();
+                });
+        }
+
+        function applyEdit() {
+            const id = document.getElementById('editFarmId').value;
+            const password = document.getElementById('editFarmPassword').value;
+            const newName = document.getElementById('editFarmName').value;
+            if (!password || password.length < 8) { alert('Password must be at least 8 characters'); return; }
+            // Apply password first
+            fetch(API + '/v2/farms/command.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ farm_id: id, action: 'update_password', password })
+            })
+            .then(async res => { if (!res.ok) throw new Error(await res.text()); return res.json(); })
+            .then(() => {
+                // Then apply name if changed
+                if (newName && newName.trim() !== '') {
+                    return fetch(API + '/v2/farms/command.php', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ farm_id: id, action: 'update_name', name: newName.trim() })
+                    });
+                }
+            })
+            .then(res => { if (res && !res.ok) return res.text().then(t=>{ throw new Error(t);}); })
+            .then(() => {
+                const modalEl = document.getElementById('editFarmModal');
+                bootstrap.Modal.getInstance(modalEl).hide();
+                loadFarms();
+            })
+            .catch(err => alert('Failed to update: ' + err.message));
+        }
+
+        // ╨д╤Г╨╜╨║╤Ж╨╕╤П ╨┤╨╗╤П ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╨┤╨░╨╜╨╜╤Л╤Е ╤Д╨╡╤А╨╝╤Л (╨╜╨╡ ╨┐╨╡╤А╨╡╤А╨╕╤Б╨╛╨▓╤Л╨▓╨░╨╡╤В ╤В╨░╨▒╨╗╨╕╤Ж╤Г)
+        function loadWorkers() {
+            fetch(`${API}/v2/farms/workers.php?farm_id=${encodeURIComponent(currentFarmId)}`)
+                .then(response => response.json())
+                .then(data => {
+                    // ╨Э╨╕╤З╨╡╨│╨╛ ╨╜╨╡ ╨┤╨╡╨╗╨░╨╡╨╝ ╤Б ╤В╨░╨▒╨╗╨╕╤Ж╨╡╨╣, ╤Б╨┐╨╕╤Б╨╛╨║ ╨╛╨▒╨╜╨╛╨▓╨╗╤П╨╡╤В loadFarms
+                })
+                .catch(error => console.error('Error loading workers:', error));
+        }
+
+        // ╨д╤Г╨╜╨║╤Ж╨╕╤П ╨┤╨╗╤П ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜╨╕╤П ╨╜╨╛╨▓╨╛╨│╨╛ ╨▓╨╛╤А╨║╨╡╤А╨░
+        function addWorker() {
+            const token = prompt('Enter farm token to send heartbeat');
+            if (!token) return;
+            fetch(`${API}/v2/farms/workers.php?farm_id=${encodeURIComponent(currentFarmId)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+            })
+            .then(async response => {
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error('HTTP ' + response.status + ': ' + text);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'OK') { loadWorkers(); }
+            })
+            .catch(error => {
+                console.error('Error adding worker:', error);
+                alert('Failed to add worker: ' + error.message);
+            });
+        }
+
+        // ╨д╤Г╨╜╨║╤Ж╨╕╤П ╨┤╨╗╤П ╤Г╨┤╨░╨╗╨╡╨╜╨╕╤П ╨▓╨╛╤А╨║╨╡╤А╨░
+        function deleteFarm() {
+            if (!confirm('Delete this farm?')) return;
+            fetch(`${API}/v2/farms/workers.php?farm_id=${encodeURIComponent(currentFarmId)}`, { method: 'DELETE' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'OK') {
+                    loadFarms().then(loadWorkers);
+                }
+            })
+            .catch(error => console.error('Error deleting worker:', error));
+        }
+
+        // ╨Ч╨░╨│╤А╤Г╨╢╨░╨╡╨╝ ╤Б╨┐╨╕╤Б╨╛╨║ ╤Д╨╡╤А╨╝ ╨┐╤А╨╕ ╨╖╨░╨│╤А╤Г╨╖╨║╨╡ ╤Б╤В╤А╨░╨╜╨╕╤Ж╤Л
+        document.addEventListener('DOMContentLoaded', () => {
+            // init dropdown labels
+            document.getElementById('refreshCountdownLabel').textContent = humanizeInterval(refreshIntervalMs);
+            // bind dropdown actions
+            document.querySelectorAll('#refreshDropdown + .dropdown-menu .dropdown-item').forEach(a => {
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const ms = parseInt(a.getAttribute('data-ms'), 10);
+                    setRefreshInterval(ms);
+                    loadFarms();
+                });
+            });
+            loadFarms();
+            setRefreshInterval(refreshIntervalMs);
+            // populate coins and bind change
+            try { loadCoins(); } catch(_){ }
+            const coinSel = document.getElementById('fsCoinSel');
+            if (coinSel) coinSel.addEventListener('change', onCoinChange);
+            document.getElementById('farmSelect').addEventListener('change', (e) => {
+                currentFarmId = e.target.value;
+                // ╨╝╨╛╨╢╨╜╨╛ ╨╛╨┐╤Ж╨╕╨╛╨╜╨░╨╗╤М╨╜╨╛ ╨┐╨╛╨┤╨│╤А╤Г╨╢╨░╤В╤М ╨┤╨╡╤В╨░╨╗╨╕, ╨╜╨╛ ╤В╨░╨▒╨╗╨╕╤Ж╤Г ╨╜╨╡ ╤В╤А╨╛╨│╨░╨╡╨╝
+            });
+        });
+

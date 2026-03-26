@@ -1,0 +1,56 @@
+# farmpulse — nginx + PHP-FPM
+#
+# Сокет: ls /run/php/php*-fpm.sock — подставьте свою версию (у вас php8.3-fpm).
+#
+# Главная: https://farmpulse.its-good.ru/  (каталог на диске .../web, без /web в URL)
+# API:     https://farmpulse.its-good.ru/api/...
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name farmpulse.its-good.ru;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name farmpulse.its-good.ru;
+
+    root /var/www/farmpulse/web;
+    index index.php;
+
+    ssl_certificate /etc/letsencrypt/live/farmpulse.its-good.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/farmpulse.its-good.ru/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # /api/... → файлы в /var/www/farmpulse/api/... (PHP — только во вложенном location)
+    location ^~ /api/ {
+        root /var/www/farmpulse;
+        try_files $uri $uri/ /api/index.php?$query_string;
+
+        location ~ \.php$ {
+            root /var/www/farmpulse;
+            include snippets/fastcgi-php.conf;
+            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include fastcgi_params;
+        }
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+}

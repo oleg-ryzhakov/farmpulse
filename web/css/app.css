@@ -1,0 +1,23 @@
+body { background-color: #1a1a1a; color: #fff; }
+.card { background-color: #2a2a2a; border: none; }
+.btn-primary { background-color: #ff9800; border-color: #ff9800; }
+.btn-primary:hover { background-color: #f57c00; border-color: #f57c00; }
+.stats-card { text-align: center; padding: 20px; margin-bottom: 20px; }
+.stats-number { font-size: 2em; font-weight: bold; color: #ff9800; }
+.stats-label { color: #888; }
+.topbar { position: sticky; top: 0; z-index: 1000; background-color: #111; border-bottom: 1px solid #333; }
+.topbar .brand { font-weight: 600; letter-spacing: .5px; }
+#workers-list { overflow: visible !important; }
+.dropdown-menu { z-index: 1050; }
+.gpu-dot { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:4px; }
+a.farm-link { color:#fff; text-decoration:none; }
+a.farm-link:hover { text-decoration:underline; }
+.coin-search-wrap { position: relative; }
+#coinList { position: absolute; left: 0; right: 0; top: 100%; background: #2a2a2a; border: 1px solid #444; border-top: none; z-index: 2000; display: none; }
+#coinList .list-group-item { border-color: #444; }
+.card-header { border-bottom: 2px solid #444; position: relative; background: #2a2a2a; padding: 0; }
+.card-header .nav-tabs { border-bottom: none; margin-bottom: -2px; margin-left: 15px; }
+.card-header .nav-tabs .nav-item { margin-bottom: 0; }
+.card-header .nav-tabs .nav-link { color: #fff; background: transparent; border: 2px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; margin-right: 2px; padding: 12px 20px; position: relative; }
+.card-header .nav-tabs .nav-link:hover { color: #fff; background: rgba(255, 255, 255, 0.04); border-color: #666; border-bottom: none; }
+.card-header .nav-tabs .nav-link.active { color: #fff; background: #2a2a2a; border: 2px solid #444; border-bottom: 2px solid #2a2a2a; z-index: 10; }

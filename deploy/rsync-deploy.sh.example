@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Скопировать в rsync-deploy.sh, заполнить DEPLOY_HOST, chmod +x rsync-deploy.sh
+# Запуск из каталога farmpulse (родительский каталог проекта).
+
+set -euo pipefail
+
+DEPLOY_HOST="${DEPLOY_HOST:-user@farmpulse.its-good.ru}"
+REMOTE_PATH="${REMOTE_PATH:-/var/www/farmpulse}"
+
+# Локально должны быть каталоги web/ и api/
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+RSYNC_OPTS=(
+  -avz
+  --delete
+  --exclude='.git'
+  --exclude='.gitignore'
+  --exclude='.DS_Store'
+  # не затирать данные на сервере:
+  --exclude='api/v2/farms/config.json'
+  --exclude='api/v2/requests.log'
+  --exclude='api/v2/market/wallets.json'
+  --exclude='api/v2/market/*.cache.json'
+)
+
+echo "rsync web/ -> ${DEPLOY_HOST}:${REMOTE_PATH}/web/"
+rsync "${RSYNC_OPTS[@]}" "${ROOT}/web/" "${DEPLOY_HOST}:${REMOTE_PATH}/web/"
+
+echo "rsync api/ -> ${DEPLOY_HOST}:${REMOTE_PATH}/api/"
+rsync "${RSYNC_OPTS[@]}" "${ROOT}/api/" "${DEPLOY_HOST}:${REMOTE_PATH}/api/"
+
+echo "OK. При необходимости: ssh ${DEPLOY_HOST} 'sudo systemctl reload nginx; sudo systemctl reload php8.3-fpm'"

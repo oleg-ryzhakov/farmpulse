@@ -1,0 +1,16 @@
+{
+  "KAS": { "name": "Kaspa", "algorithm": "kheavyhash" },
+  "ETC": { "name": "Ethereum Classic", "algorithm": "etchash" },
+  "ERG": { "name": "Ergo", "algorithm": "autolykos2" },
+  "RVN": { "name": "Ravencoin", "algorithm": "kawpow" },
+  "BEAM": { "name": "Beam", "algorithm": "beamhash" },
+  "CFX": { "name": "Conflux", "algorithm": "octopus" },
+  "ZIL": { "name": "Zilliqa", "algorithm": "ethash" },
+  "ZEN": { "name": "Horizen", "algorithm": "equihash" },
+  "FLUX": { "name": "Flux", "algorithm": "zelhash" },
+  "NEOX": { "name": "Neoxa", "algorithm": "kawpow" },
+  "FIRO": { "name": "Firo", "algorithm": "firopow" }
+}
+
+
+

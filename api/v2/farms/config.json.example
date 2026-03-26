@@ -1,0 +1,14 @@
+{
+    "farms": {
+        "1": {
+            "name": "example-rig",
+            "password": "change_me_min8",
+            "token": null,
+            "status": "offline",
+            "last_seen_at": null,
+            "commands": [],
+            "gpu_temps": [],
+            "gpu_count": 0
+        }
+    }
+}

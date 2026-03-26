@@ -1,0 +1,10 @@
+AcceptPathInfo On
+RewriteEngine On
+
+# Route everything under /api to api/index.php unless it's a real file/dir
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
+
+
+

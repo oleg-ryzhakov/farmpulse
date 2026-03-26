@@ -1,0 +1,6 @@
+[
+  { "id": 101, "name": "teamredminer", "version": "v0.10.22", "algorithms": ["kawpow","ethash","etchash"] },
+  { "id": 102, "name": "t-rex", "version": "0.26.8", "algorithms": ["kawpow","autolykos2","octopus"] },
+  { "id": 103, "name": "nbminer", "version": "42.3", "algorithms": ["etchash","ethash","kheavyhash"] }
+]
+
