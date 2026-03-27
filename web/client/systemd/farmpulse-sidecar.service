@@ -5,6 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+# Иначе при выходе sidecar systemd убивает весь cgroup — фоновый /hive/sbin/sreboot не доживает до ребута.
+KillMode=process
 ExecStart=/opt/farmpulse/bin/sidecar.sh
 User=root
 SyslogIdentifier=farmpulse-sidecar
