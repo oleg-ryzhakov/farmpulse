@@ -2,6 +2,8 @@
 
 На прод нужны **`web/`** (включая **`web/client/`** — установщик для ригов: `wget …/client/install.sh`) и **`api/`**. Для мобильного API в памяти — ещё **`api-application/server/`** (Python). Папки `docs/`, примеры nginx — не обязательны для работы сайта.
 
+Готовый **исправленный** конфиг nginx для `sites-available` (один `server` на 443, без вложенности): [`sites-available-farmpulse.conf`](sites-available-farmpulse.conf) — можно скопировать на сервер целиком в `/etc/nginx/sites-available/farmpulse` (после бэкапа старого файла).
+
 Файлы на VPS **ниоткуда сами не подтягиваются**: вы один раз кладёте дерево проекта туда через **git** (`clone` / `pull`) или **rsync/scp** с вашего ПК, либо **CI** по push. После обновления кода — при необходимости `pip install -r api-application/server/requirements.txt`, перезапуск `farmpulse-app-api`, `nginx reload` (см. `api-application/README.md`).
 
 ## Варианты
