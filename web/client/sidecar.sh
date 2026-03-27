@@ -3,13 +3,30 @@
 # FarmPulse sidecar — send stats to FarmPulse worker API; execute commands from responses.
 # Does not read or modify Hive OS HIVE_HOST_URL / hive-agent configuration.
 #
+#   ./sidecar.sh           — один цикл (для systemd)
+#   ./sidecar.sh trace     — один запрос: наглядный вывод, команды НЕ выполняются
+#   FARMPULSE_DEBUG=1      — при обычном запуске писать краткий лог в stderr (для journal)
+#
 set -u
 
 ENV_FILE=/etc/farmpulse.env
 LOG_TAG=farmpulse-sidecar
 
+TRACE=0
+if [ "${1:-}" = "trace" ] || [ "${FARMPULSE_TRACE:-0}" = "1" ]; then
+  TRACE=1
+fi
+
+DEBUG="${FARMPULSE_DEBUG:-0}"
+
 log() {
   echo "[$LOG_TAG] $*" >&2
+}
+
+dbg() {
+  if [ "$DEBUG" = "1" ]; then
+    log "$@"
+  fi
 }
 
 if [ ! -f "$ENV_FILE" ]; then
@@ -142,11 +159,67 @@ WORKER="${FARMPULSE_URL}/api/worker/api.php"
 ENC_ID=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$FARM_ID")
 URL="${WORKER}?id_rig=${ENC_ID}&method=stats"
 
+if [ "$TRACE" = "1" ]; then
+  TMP=$(mktemp)
+  trap 'rm -f "$TMP"' EXIT
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "FarmPulse trace  (команды из ответа не выполняются)"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "Время:    $(date '+%Y-%m-%d %H:%M:%S %Z')"
+  echo "Ферма:    id_rig=$FARM_ID"
+  echo "URL:      $URL"
+  echo "Отправка: temps/GPU (params.temp) из тела JSON:"
+  echo "$STATS_BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get('params',{}), indent=2, ensure_ascii=False))"
+  echo ""
+  HTTP=$(curl -sS --connect-timeout 20 --max-time 90 -o "$TMP" -w "%{http_code}" -X POST "$URL" \
+    -H "Content-Type: application/json" \
+    -d "$STATS_BODY") || HTTP="err"
+  echo "HTTP:     $HTTP"
+  echo "Ответ:"
+  if [ -s "$TMP" ]; then
+    cat "$TMP" | python3 -c "
+import json, sys
+raw = sys.stdin.read()
+try:
+    d = json.loads(raw)
+except json.JSONDecodeError:
+    print(raw[:4000])
+    sys.exit(0)
+r = d.get('result')
+if isinstance(r, dict):
+    cmd = r.get('command')
+    print(json.dumps(d, indent=2, ensure_ascii=False)[:8000])
+    print('---')
+    print('Итог: result.command =', repr(cmd))
+    if r.get('exec'):
+        print('      result.exec   =', repr(r.get('exec')))
+else:
+    print(json.dumps(d, indent=2, ensure_ascii=False)[:8000])
+" 2>/dev/null || cat "$TMP"
+  else
+    echo "(пустое тело)"
+  fi
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  exit 0
+fi
+
 if ! RESP=$(curl -fsS --connect-timeout 20 --max-time 90 -X POST "$URL" \
   -H "Content-Type: application/json" \
   -d "$STATS_BODY" 2>&1); then
   log "stats request failed: $RESP"
   exit 0
+fi
+
+if [ "$DEBUG" = "1" ]; then
+  echo "$RESP" | python3 <<'PY' >&2
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    r = d.get("result") or {}
+    print(f"[farmpulse-sidecar] result.command={r.get('command')!r} exec={r.get('exec')!r}", file=sys.stderr)
+except Exception as ex:
+    print(f"[farmpulse-sidecar] debug parse: {ex}", file=sys.stderr)
+PY
 fi
 
 run_command_from_json "$RESP"

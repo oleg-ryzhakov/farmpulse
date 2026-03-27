@@ -38,6 +38,7 @@ download() {
 }
 
 download sidecar.sh "$BIN/sidecar.sh"
+download farmpulse-watch.sh "$BIN/farmpulse-watch.sh"
 download firstrun_farmpulse.sh "$BIN/firstrun_farmpulse.sh"
 download uninstall.sh "$BIN/uninstall.sh"
 download systemd/farmpulse-sidecar.service "$SYSTEMD/farmpulse-sidecar.service"
@@ -46,6 +47,7 @@ download systemd/farmpulse-sidecar.timer "$SYSTEMD/farmpulse-sidecar.timer"
 chmod 644 "$SYSTEMD/farmpulse-sidecar.service" "$SYSTEMD/farmpulse-sidecar.timer"
 
 ln -sf "$BIN/firstrun_farmpulse.sh" /usr/local/bin/firstrun_farmpulse
+ln -sf "$BIN/farmpulse-watch.sh" /usr/local/bin/farmpulse-watch
 
 systemctl daemon-reload
 
@@ -53,4 +55,5 @@ echo ""
 echo "FarmPulse client files installed under /opt/farmpulse/bin"
 echo "Next: run  firstrun_farmpulse  (or $BIN/firstrun_farmpulse.sh)"
 echo "      Enter FarmPulse URL, rig id and password from the web panel."
+echo "Debug:  sudo $BIN/sidecar.sh trace   |   sudo farmpulse-watch"
 echo ""

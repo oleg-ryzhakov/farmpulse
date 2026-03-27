@@ -15,7 +15,7 @@ rm -f /etc/systemd/system/farmpulse-sidecar.service
 rm -rf /etc/systemd/system/farmpulse-sidecar.timer.d
 systemctl daemon-reload
 
-rm -f /usr/local/bin/firstrun_farmpulse
+rm -f /usr/local/bin/firstrun_farmpulse /usr/local/bin/farmpulse-watch
 rm -rf /opt/farmpulse
 rm -f /etc/farmpulse.env
 rm -rf /var/lib/farmpulse

@@ -41,6 +41,28 @@
    journalctl -u farmpulse-sidecar.service -n 30
    ```
 
+## Наглядно: запрос и ответ API
+
+**Один запрос** `stats` (как у таймера), **без выполнения команд** на риге (reboot из ответа не запускается):
+
+```bash
+sudo /opt/farmpulse/bin/sidecar.sh trace
+```
+
+Показываются URL, тело запроса (`params.temp`), HTTP-код, JSON ответа и кратко `result.command` / `exec`.
+
+**Цикл** (по умолчанию каждые 5 с; интервал: `farmpulse-watch 10`):
+
+```bash
+sudo farmpulse-watch
+```
+
+**Краткий лог в journal** при работе таймера — добавьте в unit переменную `FARMPULSE_DEBUG=1` (`systemctl edit farmpulse-sidecar.service`, секция `[Service]`), затем:
+
+```bash
+journalctl -u farmpulse-sidecar.service -f
+```
+
 ## Деплой на сервер
 
 Достаточно выкатывать каталог **`web/`** (в нём уже есть `client/`). Отдельно копировать `client/` рядом с `web` **не нужно**.
