@@ -5,6 +5,9 @@ api/v2/market/*.cache.json
 api/v2/market/wallets.json
 api/v2/market/scrape-*.log
 
+# Локальная копия Flutter SDK (ставится вручную, не в репозиторий)
+flutter/
+
 # OS
 Thumbs.db
 .DS_Store

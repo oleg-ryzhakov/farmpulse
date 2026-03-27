@@ -23,16 +23,38 @@
 
 Телефон по USB с отладкой или эмулятор — для `flutter run`.
 
-## Как инициализировать проект (когда будете готовы)
+## Где лежит код Flutter
 
-Рекомендуется создать приложение **в подкаталоге**, чтобы не смешивать с этим `README`:
+Каркас уже создан в подкаталоге **`farm_pulse_app/`** (рядом с этим `README`).
 
-```bash
-cd android
-flutter create --org ru.itsgood.farmpulse farm_pulse_app
-cd farm_pulse_app
+| | |
+|--|--|
+| Каталог проекта | `farmpulse/android/farm_pulse_app/` |
+| Точка входа Dart | `farm_pulse_app/lib/main.dart` |
+| Android (Kotlin, манифест) | `farm_pulse_app/android/` |
+| Идентификатор приложения | `--org ru.itsgood.farmpulse` → пакет `ru.itsgood.farmpulse.farm_pulse_app` |
+| Платформы в репозитории | только **Android** (`flutter create ... --platforms=android`) |
+
+### Первый запуск на устройстве
+
+1. Подключите телефон с **отладкой по USB** или запустите **эмулятор** в Android Studio (Device Manager).
+2. В терминале:
+
+```bat
+cd C:\OSPanel\domains\hive-management\farmpulse\android\farm_pulse_app
+flutter devices
 flutter pub get
 flutter run
+```
+
+`flutter run` по умолчанию возьмёт единственное Android-устройство; если их несколько: `flutter run -d <id>` (id из `flutter devices`).
+
+### Пересоздать с нуля (если понадобится)
+
+Из каталога `farmpulse/android/`:
+
+```bash
+flutter create --org ru.itsgood.farmpulse --platforms=android --project-name farm_pulse_app farm_pulse_app
 ```
 
 Имя пакета `ru.itsgood.farmpulse` — пример; замените на свой reverse-DNS при необходимости.
@@ -51,4 +73,4 @@ flutter run
 - Сервер и API: каталоги `../web/`, `../api/`.
 - Документ по подключению ригов (контекст продукта): `../docs/CONNECT-RIG.md`.
 
-Эта папка `android/` — только заготовка под клиент; код Flutter появится после `flutter create` (см. выше).
+Корень **hive-management** в git игнорирует каталог `farmpulse/` (отдельный репозиторий). Версионирование клиента — в репозитории **farmpulse** на GitHub или локальные бэкапы.
