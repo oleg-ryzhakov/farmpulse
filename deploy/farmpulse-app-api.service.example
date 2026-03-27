@@ -1,0 +1,18 @@
+# Скопировать в /etc/systemd/system/farmpulse-app-api.service
+# Пути и пользователя подставьте под свою установку.
+
+[Unit]
+Description=FarmPulse in-memory API for mobile (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/farmpulse/api-application/server
+EnvironmentFile=/etc/farmpulse/app-api.env
+ExecStart=/var/www/farmpulse/api-application/server/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
