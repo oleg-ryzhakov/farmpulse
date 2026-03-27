@@ -68,6 +68,8 @@ journalctl -u farmpulse-sidecar.service -f
 journalctl -t farmpulse-sidecar -f
 # локальный файл (одна строка на тик):
 tail -f /var/log/farmpulse-sidecar.log
+# если не уходит в reboot — подробности попыток:
+cat /var/log/farmpulse-reboot.log
 ```
 
 ## Деплой на сервер

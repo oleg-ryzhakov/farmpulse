@@ -100,40 +100,99 @@ def spawn_detach(argv):
         log_err("spawn failed: " + str(ex))
         return False
 
+def log_reboot(msg):
+    try:
+        with open("/var/log/farmpulse-reboot.log", "a", encoding="utf-8") as f:
+            f.write(msg + "\n")
+    except Exception:
+        pass
+    log_err(msg)
+
 def do_reboot_from_server():
-    # 1) Hive — штатный sreboot
+    log_reboot("--- do_reboot_from_server start ---")
+    # 1) Hive
     if os.path.isfile("/hive/sbin/sreboot"):
         if spawn_detach(["/hive/sbin/sreboot"]):
-            log_err("reboot: spawned /hive/sbin/sreboot")
+            log_reboot("spawned /hive/sbin/sreboot")
             return
-    # 2) systemctl reboot (иногда из unit возвращает !=0 — идём дальше)
+    # 2) loginctl (logind), часто работает там, где systemctl из unit — нет
+    lc = shutil.which("loginctl")
+    if lc:
+        try:
+            r = subprocess.run(
+                [lc, "reboot"],
+                timeout=60,
+                capture_output=True,
+                text=True,
+            )
+            log_reboot("loginctl reboot rc=%s err=%s" % (r.returncode, (r.stderr or "")[:400]))
+            if r.returncode == 0:
+                return
+        except Exception as ex:
+            log_reboot("loginctl: " + str(ex))
+    # 3) D-Bus → logind (без polkit-агента)
+    dbus_send = shutil.which("dbus-send")
+    if dbus_send:
+        try:
+            r = subprocess.run(
+                [
+                    dbus_send,
+                    "--system",
+                    "--print-reply",
+                    "--dest=org.freedesktop.login1",
+                    "/org/freedesktop/login1",
+                    "org.freedesktop.login1.Manager.Reboot",
+                    "boolean:false",
+                ],
+                timeout=30,
+                capture_output=True,
+                text=True,
+            )
+            log_reboot("dbus Reboot rc=%s out=%s" % (r.returncode, (r.stdout or "")[:300]))
+            if r.returncode == 0:
+                return
+        except Exception as ex:
+            log_reboot("dbus: " + str(ex))
+    # 4) systemctl
     for sc in ("/usr/bin/systemctl", "/bin/systemctl", shutil.which("systemctl") or ""):
         if not sc or not os.path.isfile(sc):
             continue
         try:
-            r = subprocess.run([sc, "reboot"], timeout=90)
-            log_err("systemctl reboot rc=%s (%s)" % (r.returncode, sc))
+            r = subprocess.run(
+                [sc, "reboot"],
+                timeout=90,
+                capture_output=True,
+                text=True,
+            )
+            log_reboot("systemctl reboot rc=%s stderr=%s" % (r.returncode, (r.stderr or "")[:500]))
             if r.returncode == 0:
                 return
         except Exception as ex:
-            log_err("systemctl reboot: " + str(ex))
+            log_reboot("systemctl: " + str(ex))
     alt = shutil.which("sreboot")
     if alt and os.path.isfile(alt):
         if spawn_detach([alt]):
-            log_err("reboot: spawned " + alt)
+            log_reboot("spawned " + alt)
             return
     for path in ("/sbin/reboot", "/usr/sbin/reboot"):
         if os.path.isfile(path) and spawn_detach([path]):
-            log_err("reboot: spawned " + path)
+            log_reboot("spawned " + path)
             return
-    # 3) shutdown — часто проходит там, где systemctl из сервиса «молчит»
     for shut in ("/sbin/shutdown", "/usr/sbin/shutdown", shutil.which("shutdown") or ""):
         if not shut or not os.path.isfile(shut):
             continue
         if spawn_detach([shut, "-r", "now"]):
-            log_err("reboot: spawned " + shut + " -r now")
+            log_reboot("spawned " + shut + " -r now")
             return
-    log_err("reboot: no working method")
+    # 5) Заменить этот процесс на /sbin/reboot (обходит «тихий» сбой spawn)
+    for p in ("/sbin/reboot", "/usr/sbin/reboot"):
+        if os.path.isfile(p):
+            log_reboot("execl " + p)
+            try:
+                os.execl(p, os.path.basename(p))
+            except OSError as ex:
+                log_reboot("execl failed: " + str(ex))
+    log_reboot("do_reboot_from_server: all methods failed — see /var/log/farmpulse-reboot.log")
 
 raw = sys.stdin.read()
 if not raw.strip():
