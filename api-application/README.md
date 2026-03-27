@@ -41,11 +41,11 @@
 
 Пример nginx: [`../deploy/nginx-site.conf.example`](../deploy/nginx-site.conf.example) (блок `location ^~ /app-api/`).
 
-Снаружи:
+Снаружи (прод-домен из `deploy/nginx-site.conf.example`):
 
-- `https://ваш-домен/app-api/health`
-- `https://ваш-домен/app-api/farms` (с заголовком ключа)
-- `wss://ваш-домен/app-api/ws?token=...`
+- `https://farmpulse.its-good.ru/app-api/health`
+- `https://farmpulse.its-good.ru/app-api/farms` — заголовок `X-Api-Key` = значение из `/etc/farmpulse/app-api.env`
+- `wss://farmpulse.its-good.ru/app-api/ws?token=...` — тот же ключ в query
 
 ---
 
@@ -85,11 +85,18 @@
    sudo nginx -t && sudo systemctl reload nginx
    ```
 
-7. Проверка:
+7. Проверка (локально на VPS):
 
    ```bash
    curl -sS http://127.0.0.1:8000/health
-   curl -sS -H "X-Api-Key: ВАШ_КЛЮЧ" http://127.0.0.1:8000/farms
+   curl -sS -H "X-Api-Key: $(grep FARMPULSE_APP_API_KEY /etc/farmpulse/app-api.env | cut -d= -f2-)" http://127.0.0.1:8000/farms
+   ```
+
+   Через HTTPS (как в браузере):
+
+   ```bash
+   curl -sS https://farmpulse.its-good.ru/app-api/health
+   curl -sS -H "X-Api-Key: $(grep FARMPULSE_APP_API_KEY /etc/farmpulse/app-api.env | cut -d= -f2-)" https://farmpulse.its-good.ru/app-api/farms
    ```
 
 ---
