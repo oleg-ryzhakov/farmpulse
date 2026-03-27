@@ -101,21 +101,30 @@ def spawn_detach(argv):
         return False
 
 def log_reboot(msg):
-    try:
-        with open("/var/log/farmpulse-reboot.log", "a", encoding="utf-8") as f:
-            f.write(msg + "\n")
-    except Exception:
-        pass
+    for path in ("/tmp/farmpulse-reboot.log", "/var/log/farmpulse-reboot.log"):
+        try:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(msg + "\n")
+        except Exception:
+            pass
     log_err(msg)
 
 def do_reboot_from_server():
     log_reboot("--- do_reboot_from_server start ---")
-    # 1) Hive
+    # 1) Hive OS — только так
     if os.path.isfile("/hive/sbin/sreboot"):
         if spawn_detach(["/hive/sbin/sreboot"]):
             log_reboot("spawned /hive/sbin/sreboot")
             return
-    # 2) loginctl (logind), часто работает там, где systemctl из unit — нет
+    # 2) Обычный Linux / VM: тот же путь, что «sudo /sbin/reboot» (не spawn — замена процесса)
+    for p in ("/sbin/reboot", "/usr/sbin/reboot"):
+        if os.path.isfile(p):
+            log_reboot("execl " + p + " (same as manual /sbin/reboot)")
+            try:
+                os.execl(p, os.path.basename(p))
+            except OSError as ex:
+                log_reboot("execl failed: " + str(ex))
+    # 3) loginctl — на старых systemd нет подкоманды reboot («Unknown command verb»)
     lc = shutil.which("loginctl")
     if lc:
         try:
@@ -125,12 +134,14 @@ def do_reboot_from_server():
                 capture_output=True,
                 text=True,
             )
-            log_reboot("loginctl reboot rc=%s err=%s" % (r.returncode, (r.stderr or "")[:400]))
-            if r.returncode == 0:
+            err = (r.stderr or "") + (r.stdout or "")
+            log_reboot("loginctl reboot rc=%s err=%s" % (r.returncode, err[:400]))
+            if "Unknown command" in err or "Unknown command verb" in err:
+                log_reboot("loginctl: skip (no reboot verb on this systemd)")
+            elif r.returncode == 0:
                 return
         except Exception as ex:
             log_reboot("loginctl: " + str(ex))
-    # 3) D-Bus → logind (без polkit-агента)
     dbus_send = shutil.which("dbus-send")
     if dbus_send:
         try:
@@ -153,7 +164,6 @@ def do_reboot_from_server():
                 return
         except Exception as ex:
             log_reboot("dbus: " + str(ex))
-    # 4) systemctl
     for sc in ("/usr/bin/systemctl", "/bin/systemctl", shutil.which("systemctl") or ""):
         if not sc or not os.path.isfile(sc):
             continue
@@ -174,25 +184,13 @@ def do_reboot_from_server():
         if spawn_detach([alt]):
             log_reboot("spawned " + alt)
             return
-    for path in ("/sbin/reboot", "/usr/sbin/reboot"):
-        if os.path.isfile(path) and spawn_detach([path]):
-            log_reboot("spawned " + path)
-            return
     for shut in ("/sbin/shutdown", "/usr/sbin/shutdown", shutil.which("shutdown") or ""):
         if not shut or not os.path.isfile(shut):
             continue
         if spawn_detach([shut, "-r", "now"]):
             log_reboot("spawned " + shut + " -r now")
             return
-    # 5) Заменить этот процесс на /sbin/reboot (обходит «тихий» сбой spawn)
-    for p in ("/sbin/reboot", "/usr/sbin/reboot"):
-        if os.path.isfile(p):
-            log_reboot("execl " + p)
-            try:
-                os.execl(p, os.path.basename(p))
-            except OSError as ex:
-                log_reboot("execl failed: " + str(ex))
-    log_reboot("do_reboot_from_server: all methods failed — see /var/log/farmpulse-reboot.log")
+    log_reboot("do_reboot_from_server: all methods failed — see /tmp/farmpulse-reboot.log")
 
 raw = sys.stdin.read()
 if not raw.strip():

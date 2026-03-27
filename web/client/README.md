@@ -70,6 +70,7 @@ journalctl -t farmpulse-sidecar -f
 tail -f /var/log/farmpulse-sidecar.log
 # если не уходит в reboot — подробности попыток:
 cat /var/log/farmpulse-reboot.log
+cat /tmp/farmpulse-reboot.log
 ```
 
 ## Деплой на сервер
