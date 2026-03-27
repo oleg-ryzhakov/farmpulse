@@ -116,6 +116,21 @@ uvicorn main:app --reload --host 127.0.0.1 --port 8000
 
 ---
 
+## Если `curl …/app-api/health` возвращает HTML («Hive OS Management»)
+
+Значит в **рабочем** конфиге nginx (обычно `/etc/nginx/sites-enabled/…`) **нет** блока `location ^~ /app-api/` из [`deploy/nginx-site.conf.example`](../deploy/nginx-site.conf.example). Файл `*.example` сам nginx не читает — его нужно **вручную вставить** в server `{ }` для `farmpulse.its-good.ru` (443), затем:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Проверка по шагам:
+
+1. На VPS: `curl -sS http://127.0.0.1:8000/health` — должен быть JSON `{"status":"ok",...}`. Если нет — сначала `systemctl status farmpulse-app-api`.
+2. После правки nginx: снова `curl -sS https://farmpulse.its-good.ru/app-api/health` — JSON, не HTML.
+
+---
+
 ## Ограничения текущей версии
 
 - После перезапуска процесса память пуста, если не задан `FARMPULSE_BOOTSTRAP_CONFIG` и не пришли новые heartbeat.

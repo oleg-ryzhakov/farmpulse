@@ -28,6 +28,7 @@ server {
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     # Python: API приложения (память + WebSocket). Слушает 127.0.0.1:8000, см. farmpulse-app-api.service.example
+    # ВАЖНО: этот блок должен быть скопирован в реальный конфиг sites-enabled; иначе /app-api/* уйдёт в location / и отдаст index.php (HTML).
     location ^~ /app-api/ {
         proxy_pass http://127.0.0.1:8000/;
         proxy_http_version 1.1;
