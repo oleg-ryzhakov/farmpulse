@@ -138,8 +138,9 @@ def do_reboot_from_server():
             r = subprocess.run(
                 [lc, "reboot"],
                 timeout=60,
-                capture_output=True,
-                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
             )
             err = (r.stderr or "") + (r.stdout or "")
             log_reboot("loginctl reboot rc=%s err=%s" % (r.returncode, err[:400]))
@@ -163,8 +164,9 @@ def do_reboot_from_server():
                     "boolean:false",
                 ],
                 timeout=30,
-                capture_output=True,
-                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
             )
             log_reboot("dbus Reboot rc=%s out=%s" % (r.returncode, (r.stdout or "")[:300]))
             if r.returncode == 0:
@@ -178,8 +180,9 @@ def do_reboot_from_server():
             r = subprocess.run(
                 [sc, "reboot"],
                 timeout=90,
-                capture_output=True,
-                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
             )
             log_reboot("systemctl reboot rc=%s stderr=%s" % (r.returncode, (r.stderr or "")[:500]))
             if r.returncode == 0:
@@ -265,8 +268,9 @@ temps = [0]
 try:
     r = subprocess.run(
         ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"],
-        capture_output=True,
-        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
         timeout=45,
     )
     if r.returncode == 0:

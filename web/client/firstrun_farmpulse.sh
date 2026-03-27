@@ -91,13 +91,25 @@ pw = e["FARM_PASSWORD"]
 gpu_nv = 0
 gpu_amd = 0
 try:
-    r = subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True, timeout=30)
+    r = subprocess.run(
+        ["nvidia-smi", "-L"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        timeout=30,
+    )
     if r.returncode == 0:
         gpu_nv = len([x for x in r.stdout.splitlines() if x.strip()])
 except (FileNotFoundError, subprocess.TimeoutExpired):
     pass
 try:
-    r = subprocess.run(["rocm-smi", "-i"], capture_output=True, text=True, timeout=30)
+    r = subprocess.run(
+        ["rocm-smi", "-i"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        timeout=30,
+    )
     if r.returncode == 0:
         gpu_amd = len([x for x in r.stdout.splitlines() if x.strip().startswith("GPU")])
 except (FileNotFoundError, subprocess.TimeoutExpired):
