@@ -26,7 +26,8 @@ echo "---------------------"
 echo "Use the same Farm ID and password you created in the FarmPulse web panel."
 echo ""
 
-read -r -p "FarmPulse base URL (https://your.domain) [required]: " FP_URL
+read -r -p "FarmPulse base URL [https://farmpulse.its-good.ru]: " FP_URL
+FP_URL="${FP_URL:-https://farmpulse.its-good.ru}"
 FP_URL="${FP_URL%/}"
 if [ -z "$FP_URL" ]; then
   echo "URL is required." >&2

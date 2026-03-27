@@ -6,7 +6,7 @@
  */
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 if (strpos($uri, '/client/') === 0) {
-    $clientRoot = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'client';
+    $clientRoot = __DIR__ . DIRECTORY_SEPARATOR . 'client';
     $rel = substr($uri, strlen('/client'));
     if ($rel === '' || $rel === '/') {
         http_response_code(404);

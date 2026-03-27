@@ -4,7 +4,7 @@
 
 ## Что попадает в Git
 
-- `web/`, `api/`, `deploy/`, `docs/`, `client/README.md`, корневой `README.md`
+- `web/` (включая `web/client/`), `api/`, `deploy/`, `docs/`, корневой `README.md`
 - **Не попадают** (см. `.gitignore`): `api/v2/farms/config.json`, логи, кэши, `wallets.json` на сервере
 
 ## Шаги на github.com

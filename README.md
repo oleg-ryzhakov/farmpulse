@@ -6,11 +6,11 @@
 
 | Каталог | Назначение |
 |---------|------------|
-| **`web/`** | Сайт: `index.php`, `farm.php`, статика `css/`, `js/`. PHP только для разметки и `WEB_API_BASE`. |
+| **`web/`** | Сайт: `index.php`, `farm.php`, статика `css/`, `js/`, **`client/`** (скрипты Hive OS sidecar). |
 | **`web/includes/config.php`** | Базовый путь к API (по умолчанию `/api`). Переопределение: `WEB_API_BASE` в окружении. |
 | **`api/`** | Сервис API: `worker/api.php`, `v2/farms/*`, `v2/market/*`, диспетчер `api/index.php`. |
-| **`deploy/`** | Пример nginx, **`README.md`** и **`rsync-deploy.sh.example`** — как выкатывать `web/` + `api/` + при необходимости `client/`. |
-| **`client/`** | Скрипты для **Hive OS** (sidecar): `install.sh`, `firstrun_farmpulse`, см. **`client/README.md`**. |
+| **`deploy/`** | Пример nginx, **`README.md`** и **`rsync-deploy.sh.example`** — как выкатывать `web/` + `api/`. |
+| **`web/client/`** | Установщик для **Hive OS** (sidecar): `install.sh`, `firstrun_farmpulse`, см. **`web/client/README.md`**. |
 | **`docs/`** | Документация. |
 
 Браузер ходит на тот же хост: страницы с `/`, запросы XHR на **`/api/v2/...`** (кросс-домен не нужен).
@@ -23,7 +23,7 @@
 php -S localhost:8080 -t web web/router-dev.php
 ```
 
-Открыть http://localhost:8080/ — статика и PHP из `web/`, пути `/api/...` из `api/`, **`/client/...`** — статика установщика из `client/`.
+Открыть http://localhost:8080/ — статика и PHP из `web/`, пути `/api/...` из `api/`, **`/client/...`** — из `web/client/`.
 
 ## GitHub
 
@@ -31,7 +31,7 @@ php -S localhost:8080 -t web web/router-dev.php
 
 ## Деплой без ручного копирования всего проекта
 
-См. **`deploy/README.md`**: варианты **rsync** (скрипт-пример), **git pull** на сервере, CI/CD. На прод обычно **`web/`** + **`api/`** + **`client/`** (для `wget` установщика с рига); `config.json` и логи на сервере по умолчанию не перезаписываются.
+См. **`deploy/README.md`**: варианты **rsync** (скрипт-пример), **git pull** на сервере, CI/CD. На прод **`web/`** (с **`web/client/`** для `wget` с рига) + **`api/`**; `config.json` и логи на сервере по умолчанию не перезаписываются.
 
 ## Продакшен (nginx)
 
@@ -43,7 +43,7 @@ DNS: запись **A** для `farmpulse.its-good.ru` → IP VPS. HTTPS: `certb
 
 ## Риги Hive OS
 
-Установка sidecar на риг: **`client/README.md`** (команда `wget …/client/install.sh` и `firstrun_farmpulse`).
+Установка sidecar на риг: **`web/client/README.md`** — `wget https://farmpulse.its-good.ru/client/install.sh` и `firstrun_farmpulse`.
 
 ## URL для рига (worker)
 

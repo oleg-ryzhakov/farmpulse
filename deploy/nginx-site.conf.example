@@ -20,12 +20,7 @@ server {
     root /var/www/farmpulse/web;
     index index.php;
 
-    # Статика install.sh / sidecar для wget с ригов (каталог client/ на VPS)
-    location ^~ /client/ {
-        alias /var/www/farmpulse/client/;
-        default_type text/plain;
-        add_header Cache-Control "public, max-age=300";
-    }
+    # Скрипты установщика: web/client/install.sh → URL /client/install.sh (отдельный alias не нужен)
 
     ssl_certificate /etc/letsencrypt/live/farmpulse.its-good.ru/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/farmpulse.its-good.ru/privkey.pem;
