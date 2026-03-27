@@ -64,6 +64,10 @@ sudo farmpulse-watch
 
 ```bash
 journalctl -u farmpulse-sidecar.service -f
+# сообщения из logger(1):
+journalctl -t farmpulse-sidecar -f
+# локальный файл (одна строка на тик):
+tail -f /var/log/farmpulse-sidecar.log
 ```
 
 ## Деплой на сервер

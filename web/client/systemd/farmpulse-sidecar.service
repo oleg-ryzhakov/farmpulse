@@ -7,5 +7,6 @@ Wants=network-online.target
 Type=oneshot
 ExecStart=/opt/farmpulse/bin/sidecar.sh
 User=root
+SyslogIdentifier=farmpulse-sidecar
 StandardOutput=journal
 StandardError=journal

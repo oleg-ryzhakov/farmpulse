@@ -23,6 +23,13 @@ log() {
   echo "[$LOG_TAG] $*" >&2
 }
 
+# В journal не всегда попадает stderr oneshot-сервиса — дублируем в syslog.
+sylog() {
+  if command -v logger >/dev/null 2>&1; then
+    logger -t "$LOG_TAG" "$@"
+  fi
+}
+
 dbg() {
   if [ "$DEBUG" = "1" ]; then
     log "$@"
@@ -51,6 +58,10 @@ fi
 
 FARMPULSE_URL="${FARMPULSE_URL%/}"
 
+if [ "$TRACE" != "1" ]; then
+  sylog "tick start farm_id=${FARM_ID}"
+fi
+
 run_command_from_json() {
   printf '%s' "$1" | python3 -u <<'PY'
 import json
@@ -60,7 +71,19 @@ import subprocess
 import sys
 
 def log_err(msg):
-    print("[farmpulse-sidecar] " + msg, file=sys.stderr, flush=True)
+    line = "[farmpulse-sidecar] " + msg
+    print(line, file=sys.stderr, flush=True)
+    try:
+        subprocess.run(
+            ["logger", "-t", "farmpulse-sidecar", msg[:1800]],
+            timeout=5,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except Exception:
+        pass
 
 def spawn_detach(argv):
     try:
@@ -83,12 +106,13 @@ def do_reboot_from_server():
         if spawn_detach(["/hive/sbin/sreboot"]):
             log_err("reboot: spawned /hive/sbin/sreboot")
             return
-    # 2) systemctl reboot — просит PID 1 (не дочерний «reboot» в cgroup), KillMode в unit не нужен
-    sc = shutil.which("systemctl")
-    if sc:
+    # 2) systemctl reboot (иногда из unit возвращает !=0 — идём дальше)
+    for sc in ("/usr/bin/systemctl", "/bin/systemctl", shutil.which("systemctl") or ""):
+        if not sc or not os.path.isfile(sc):
+            continue
         try:
             r = subprocess.run([sc, "reboot"], timeout=90)
-            log_err("systemctl reboot rc=%s" % (r.returncode,))
+            log_err("systemctl reboot rc=%s (%s)" % (r.returncode, sc))
             if r.returncode == 0:
                 return
         except Exception as ex:
@@ -102,7 +126,14 @@ def do_reboot_from_server():
         if os.path.isfile(path) and spawn_detach([path]):
             log_err("reboot: spawned " + path)
             return
-    log_err("reboot: no working method (systemctl / sreboot / reboot)")
+    # 3) shutdown — часто проходит там, где systemctl из сервиса «молчит»
+    for shut in ("/sbin/shutdown", "/usr/sbin/shutdown", shutil.which("shutdown") or ""):
+        if not shut or not os.path.isfile(shut):
+            continue
+        if spawn_detach([shut, "-r", "now"]):
+            log_err("reboot: spawned " + shut + " -r now")
+            return
+    log_err("reboot: no working method")
 
 raw = sys.stdin.read()
 if not raw.strip():
@@ -238,8 +269,14 @@ if ! RESP=$(curl -fsS --connect-timeout 20 --max-time 90 -X POST "$URL" \
   -H "Content-Type: application/json" \
   -d "$STATS_BODY" 2>&1); then
   log "stats request failed: $RESP"
+  sylog "stats FAILED: ${RESP:0:200}"
   exit 0
 fi
+
+SUM_CMD="$(printf '%s' "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); r=d.get('result') or {}; print(r.get('command','') or '')" 2>/dev/null || echo '?')"
+SUM_EX="$(printf '%s' "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); r=d.get('result') or {}; print(r.get('exec','') or '')" 2>/dev/null || echo '')"
+sylog "stats ok command=${SUM_CMD:-} exec=${SUM_EX:0:80}"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) farm=${FARM_ID} cmd=${SUM_CMD:-} exec=${SUM_EX:-}" >> /var/log/farmpulse-sidecar.log 2>/dev/null || true
 
 if [ "$DEBUG" = "1" ]; then
   echo "$RESP" | python3 <<'PY' >&2
