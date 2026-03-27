@@ -63,7 +63,14 @@ if [ "$TRACE" != "1" ]; then
 fi
 
 run_command_from_json() {
-  printf '%s' "$1" | python3 -u <<'PY'
+  # Нельзя: printf ... | python <<'PY' — stdin у Python будет heredoc (код), не JSON.
+  local _jf
+  _jf=$(mktemp) || return 0
+  printf '%s' "$1" > "$_jf"
+  export FARMPULSE_JSON_PATH="$_jf"
+  # shellcheck disable=SC2064
+  trap 'rm -f "$_jf"; unset FARMPULSE_JSON_PATH' RETURN
+  python3 -u <<'PY'
 import json
 import os
 import shutil
@@ -192,12 +199,26 @@ def do_reboot_from_server():
             return
     log_reboot("do_reboot_from_server: all methods failed — see /tmp/farmpulse-reboot.log")
 
-raw = sys.stdin.read()
+path = os.environ.get("FARMPULSE_JSON_PATH", "")
+if not path:
+    log_err("handler: FARMPULSE_JSON_PATH missing")
+    sys.exit(1)
+try:
+    with open(path, encoding="utf-8") as _fp:
+        raw = _fp.read()
+except OSError as ex:
+    log_err("handler: read json path: " + str(ex))
+    sys.exit(1)
+try:
+    os.unlink(path)
+except OSError:
+    pass
 if not raw.strip():
     sys.exit(0)
 try:
     d = json.loads(raw)
-except json.JSONDecodeError:
+except json.JSONDecodeError as ex:
+    log_err("handler: JSON decode: " + str(ex))
     sys.exit(0)
 res = d.get("result")
 if not isinstance(res, dict):
@@ -336,15 +357,7 @@ sylog "stats ok command=${SUM_CMD:-} exec=${SUM_EX:0:80}"
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) farm=${FARM_ID} cmd=${SUM_CMD:-} exec=${SUM_EX:-}" >> /var/log/farmpulse-sidecar.log 2>/dev/null || true
 
 if [ "$DEBUG" = "1" ]; then
-  echo "$RESP" | python3 <<'PY' >&2
-import json, sys
-try:
-    d = json.load(sys.stdin)
-    r = d.get("result") or {}
-    print(f"[farmpulse-sidecar] result.command={r.get('command')!r} exec={r.get('exec')!r}", file=sys.stderr)
-except Exception as ex:
-    print(f"[farmpulse-sidecar] debug parse: {ex}", file=sys.stderr)
-PY
+  printf '%s' "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); r=d.get('result')or{}; print('[farmpulse-sidecar] result.command='+repr(r.get('command'))+' exec='+repr(r.get('exec')), file=sys.stderr)" || true
 fi
 
 run_command_from_json "$RESP"
