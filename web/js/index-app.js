@@ -1,8 +1,8 @@
 const API = (typeof window.API_BASE === 'string' ? window.API_BASE.replace(/\/$/, '') : '/api');
 
 let currentFarmId = '1';
-// Auto-refresh list; online if last_seen within ONLINE_THRESHOLD_MS (default 30s)
-const ONLINE_THRESHOLD_MS = 30000;
+// Online if last_seen within this window. Must exceed sidecar poll interval (often 30s) + network jitter.
+const ONLINE_THRESHOLD_MS = 120000;
 let refreshIntervalMs = parseInt(localStorage.getItem('refreshIntervalMs') || '30000', 10);
 let refreshTimer = null;
 // Bootstrap tooltip instances; recreated after table re-render
@@ -47,9 +47,10 @@ function parseLastSeen(s) {
     if (!s) return null;
     const parts = s.split(' ');
     if (parts.length !== 2) return null;
-    const [y,m,d] = parts[0].split('-').map(Number);
-    const [hh,mm,ss] = parts[1].split(':').map(Number);
-    return new Date(y, (m||1)-1, d||1, hh||0, mm||0, ss||0);
+    const [y, m, d] = parts[0].split('-').map(Number);
+    const [hh, mm, ss] = parts[1].split(':').map(Number);
+    // Server stores last_seen_at as UTC (gmdate); compare with Date.now() consistently.
+    return new Date(Date.UTC(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, ss || 0));
 }
 
 function loadFarms() {

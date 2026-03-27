@@ -63,14 +63,23 @@ if cmd == "reboot":
     alt = shutil.which("sreboot")
     if alt:
         subprocess.run([alt], check=False)
+        sys.exit(0)
+    for path in ("/sbin/reboot", "/usr/sbin/reboot"):
+        if os.path.isfile(path):
+            subprocess.run([path], check=False)
+            sys.exit(0)
     sys.exit(0)
 if cmd == "exec":
     ex = (res.get("exec") or "").strip()
     if not ex:
         sys.exit(0)
-    if ex in ("sreboot", "/hive/sbin/sreboot") or ex.endswith("/sreboot"):
+    if ex in ("sreboot", "/hive/sbin/sreboot") or ex.endswith("sreboot") or ex.endswith("/sreboot"):
         for path in ("/hive/sbin/sreboot", shutil.which("sreboot") or ""):
             if path and os.path.isfile(path):
+                subprocess.run([path], check=False)
+                sys.exit(0)
+        for path in ("/sbin/reboot", "/usr/sbin/reboot"):
+            if os.path.isfile(path):
                 subprocess.run([path], check=False)
                 sys.exit(0)
     subprocess.run(["/bin/sh", "-c", ex], check=False)

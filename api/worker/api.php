@@ -131,7 +131,7 @@ switch ($op) {
         }
         // Mark online
         $config['farms'][$farmId]['status'] = 'online';
-        $config['farms'][$farmId]['last_seen_at'] = date('Y-m-d H:i:s');
+        $config['farms'][$farmId]['last_seen_at'] = gmdate('Y-m-d H:i:s');
         // Save initial gpu count if provided in hello
         $gpuCount = intval($rpcParams['gpu_count_amd'] ?? 0) + intval($rpcParams['gpu_count_nvidia'] ?? 0);
         if ($gpuCount > 0) { $config['farms'][$farmId]['gpu_count'] = $gpuCount; }
@@ -158,9 +158,14 @@ switch ($op) {
         break;
 
     case 'stats':
+        if (($config['farms'][$farmId]['password'] ?? '') !== ($password ?? '')) {
+            http_response_code(401);
+            echo json_encode(['status' => 'error', 'message' => 'Invalid credentials']);
+            exit;
+        }
         // Heartbeat + optional command delivery (match agent expectations)
         $config['farms'][$farmId]['status'] = 'online';
-        $config['farms'][$farmId]['last_seen_at'] = date('Y-m-d H:i:s');
+        $config['farms'][$farmId]['last_seen_at'] = gmdate('Y-m-d H:i:s');
         // Persist GPU temperatures and count (skip first placeholder)
         $tempsRaw = $rpcParams['temp'] ?? [];
         if (is_array($tempsRaw)) {
@@ -197,9 +202,10 @@ switch ($op) {
                 // leave as reboot (agent handles reboot)
             }
             echo json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => $result]);
-            // Pop delivered command
-            $config['farms'][$farmId]['commands'] = array_values(array_filter($queue, function($c) use ($chosen) {
-                return (($c['id'] ?? null) !== $chosen['id']);
+            // Pop delivered command (loose id match: JSON may store int or string)
+            $chosenId = $chosen['id'] ?? null;
+            $config['farms'][$farmId]['commands'] = array_values(array_filter($queue, function($c) use ($chosenId) {
+                return (string)($c['id'] ?? '') !== (string)$chosenId;
             }));
             file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
         } else {
@@ -209,9 +215,14 @@ switch ($op) {
         break;
 
     case 'message':
+        if (($config['farms'][$farmId]['password'] ?? '') !== ($password ?? '')) {
+            http_response_code(401);
+            echo json_encode(['status' => 'error', 'message' => 'Invalid credentials']);
+            exit;
+        }
         // Treat as heartbeat + deliver queued commands (minimal shape for agent)
         $config['farms'][$farmId]['status'] = 'online';
-        $config['farms'][$farmId]['last_seen_at'] = date('Y-m-d H:i:s');
+        $config['farms'][$farmId]['last_seen_at'] = gmdate('Y-m-d H:i:s');
         $queue = $config['farms'][$farmId]['commands'] ?? [];
         // Normalize to [{id, command, exec?}] and keep original exec if present
         $normalized = [];
@@ -249,8 +260,9 @@ switch ($op) {
             }
             $result['commands'] = [ $cmdObj ];
             // Удалим доставленную команду из очереди, чтобы не повторялась
-            $config['farms'][$farmId]['commands'] = array_values(array_filter($queue, function($c) use ($chosen) {
-                return (($c['id'] ?? null) !== $chosen['id']);
+            $chosenId = $chosen['id'] ?? null;
+            $config['farms'][$farmId]['commands'] = array_values(array_filter($queue, function($c) use ($chosenId) {
+                return (string)($c['id'] ?? '') !== (string)$chosenId;
             }));
             file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
             echo json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => $result]);

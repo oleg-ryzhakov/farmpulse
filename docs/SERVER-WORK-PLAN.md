@@ -95,7 +95,7 @@
 | `hello` | 200, пароль совпадает, в ответе есть `config` |
 | `stats` | Обновляются `last_seen_at`, `gpu_temps` |
 | Очередь команды | Из UI `command.php` → `reboot` → в следующем `stats`/`message` риг получает команду |
-| Веб | `index.php` показывает online/offline по `last_seen` (порог 30 с — как в текущем JS) |
+| Веб | `index.php` показывает online/offline по `last_seen` (порог ~120 с; UTC; интервал sidecar обычно 30 с) |
 
 ---
 

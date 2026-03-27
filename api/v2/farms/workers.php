@@ -53,7 +53,7 @@ switch ($method) {
             exit;
         }
         $config['farms'][$farmId]['status'] = 'online';
-        $config['farms'][$farmId]['last_seen_at'] = date('Y-m-d H:i:s');
+        $config['farms'][$farmId]['last_seen_at'] = gmdate('Y-m-d H:i:s');
 
         if (file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT))) {
             echo json_encode(["status" => "OK"]);
