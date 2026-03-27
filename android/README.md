@@ -51,6 +51,18 @@ flutter run
 
 `flutter run` по умолчанию возьмёт единственное Android-устройство; если их несколько: `flutter run -d <id>` (id из `flutter devices`).
 
+### Что уже сделано в приложении
+
+- Экран **Подключение**: базовый URL (`https://farmpulse.its-good.ru/app-api` по умолчанию) и **X-Api-Key** (тот же, что `FARMPULSE_APP_API_KEY` на сервере), хранение в **secure storage**.
+- Экран **FarmPulse**: `GET /farms`, **WebSocket** `wss://…/app-api/ws?token=…` для обновлений `farms_snapshot`, pull-to-refresh, индикатор WebSocket.
+
+### Когда «появится» приложение
+
+| Действие | Результат |
+|----------|-----------|
+| `flutter run` | Сборка и установка на подключённый телефон/эмулятор — иконка **FarmPulse** в лаунчере, запуск как обычное приложение. |
+| `flutter build apk` | Файл **`build/app/outputs/flutter-apk/app-release.apk`** — можно копировать на телефон и ставить вручную (нужна подпись release или `flutter build apk --debug` для отладочного APK). |
+
 ### Пересоздать с нуля (если понадобится)
 
 Из каталога `farmpulse/android/`:
