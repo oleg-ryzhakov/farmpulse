@@ -8,6 +8,9 @@ api/v2/market/scrape-*.log
 # Локальная копия Flutter SDK (ставится вручную, не в репозиторий)
 flutter/
 
+# Python (venv не в корне репозитория)
+.venv/
+
 # OS
 Thumbs.db
 .DS_Store
