@@ -1,0 +1,12 @@
+# После `flutter create` в подкаталоге (например farm_pulse_app/) часть файлов
+# будет внутри него со своим .gitignore. Ниже — типичные артефакты Flutter/Dart.
+
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/*.iml
+**/local.properties
+**/.gradle/
+**/captures/
+**/.cxx/
