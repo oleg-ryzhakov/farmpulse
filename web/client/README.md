@@ -46,8 +46,11 @@
 **Один запрос** `stats` (как у таймера), **без выполнения команд** на риге (reboot из ответа не запускается):
 
 ```bash
-sudo /opt/farmpulse/bin/sidecar.sh trace
+sudo farmpulse-sidecar trace
+# или: sudo /opt/farmpulse/bin/sidecar.sh trace
 ```
+
+Если команды не находятся — переустановите клиент (`wget …/client/install.sh | bash …`) или вручную: `sudo ln -sf /opt/farmpulse/bin/farmpulse-watch.sh /usr/bin/farmpulse-watch`.
 
 Показываются URL, тело запроса (`params.temp`), HTTP-код, JSON ответа и кратко `result.command` / `exec`.
 

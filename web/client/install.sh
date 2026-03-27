@@ -48,6 +48,10 @@ chmod 644 "$SYSTEMD/farmpulse-sidecar.service" "$SYSTEMD/farmpulse-sidecar.timer
 
 ln -sf "$BIN/firstrun_farmpulse.sh" /usr/local/bin/firstrun_farmpulse
 ln -sf "$BIN/farmpulse-watch.sh" /usr/local/bin/farmpulse-watch
+# /usr/bin — в PATH у sudo (secure_path) всегда есть; /usr/local/bin иногда нет
+ln -sf "$BIN/firstrun_farmpulse.sh" /usr/bin/firstrun_farmpulse
+ln -sf "$BIN/farmpulse-watch.sh" /usr/bin/farmpulse-watch
+ln -sf "$BIN/sidecar.sh" /usr/bin/farmpulse-sidecar
 
 systemctl daemon-reload
 
@@ -55,5 +59,5 @@ echo ""
 echo "FarmPulse client files installed under /opt/farmpulse/bin"
 echo "Next: run  firstrun_farmpulse  (or $BIN/firstrun_farmpulse.sh)"
 echo "      Enter FarmPulse URL, rig id and password from the web panel."
-echo "Debug:  sudo $BIN/sidecar.sh trace   |   sudo farmpulse-watch"
+echo "Debug:  sudo farmpulse-sidecar trace   |   sudo farmpulse-watch"
 echo ""
