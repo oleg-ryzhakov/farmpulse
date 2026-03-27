@@ -7,3 +7,5 @@ Wants=network-online.target
 Type=oneshot
 ExecStart=/opt/farmpulse/bin/sidecar.sh
 User=root
+# Иначе после выхода sidecar.sh systemd может завершить дочерний reboot/sreboot в той же cgroup
+KillMode=none

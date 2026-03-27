@@ -59,6 +59,37 @@ import shutil
 import subprocess
 import sys
 
+def log_err(msg):
+    print("[farmpulse-sidecar] " + msg, file=sys.stderr)
+
+def spawn_detach(argv):
+    """Отдельная session — иначе systemd при Type=oneshot убивает дочерний reboot в cgroup."""
+    try:
+        subprocess.Popen(
+            argv,
+            start_new_session=True,
+            close_fds=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except OSError as ex:
+        log_err("spawn failed: " + str(ex))
+        return False
+
+def do_reboot_from_server():
+    for path in ("/hive/sbin/sreboot", shutil.which("sreboot") or "", "/sbin/reboot", "/usr/sbin/reboot"):
+        if path and os.path.isfile(path):
+            if spawn_detach([path]):
+                log_err("reboot scheduled via " + path)
+                return
+    sc = shutil.which("systemctl")
+    if sc and spawn_detach([sc, "reboot"]):
+        log_err("reboot scheduled via systemctl")
+        return
+    log_err("reboot: no sreboot/reboot/systemctl found")
+
 raw = sys.stdin.read()
 if not raw.strip():
     sys.exit(0)
@@ -73,33 +104,16 @@ cmd = res.get("command")
 if cmd in (None, "OK"):
     sys.exit(0)
 if cmd == "reboot":
-    for path in ("/hive/sbin/sreboot",):
-        if os.path.isfile(path):
-            subprocess.run([path], check=False)
-            sys.exit(0)
-    alt = shutil.which("sreboot")
-    if alt:
-        subprocess.run([alt], check=False)
-        sys.exit(0)
-    for path in ("/sbin/reboot", "/usr/sbin/reboot"):
-        if os.path.isfile(path):
-            subprocess.run([path], check=False)
-            sys.exit(0)
+    do_reboot_from_server()
     sys.exit(0)
 if cmd == "exec":
     ex = (res.get("exec") or "").strip()
     if not ex:
         sys.exit(0)
     if ex in ("sreboot", "/hive/sbin/sreboot") or ex.endswith("sreboot") or ex.endswith("/sreboot"):
-        for path in ("/hive/sbin/sreboot", shutil.which("sreboot") or ""):
-            if path and os.path.isfile(path):
-                subprocess.run([path], check=False)
-                sys.exit(0)
-        for path in ("/sbin/reboot", "/usr/sbin/reboot"):
-            if os.path.isfile(path):
-                subprocess.run([path], check=False)
-                sys.exit(0)
-    subprocess.run(["/bin/sh", "-c", ex], check=False)
+        do_reboot_from_server()
+        sys.exit(0)
+    spawn_detach(["/bin/sh", "-c", ex])
 PY
 }
 
