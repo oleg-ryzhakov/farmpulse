@@ -52,7 +52,7 @@ fi
 FARMPULSE_URL="${FARMPULSE_URL%/}"
 
 run_command_from_json() {
-  printf '%s' "$1" | python3 <<'PY'
+  printf '%s' "$1" | python3 -u <<'PY'
 import json
 import os
 import shutil
@@ -60,10 +60,9 @@ import subprocess
 import sys
 
 def log_err(msg):
-    print("[farmpulse-sidecar] " + msg, file=sys.stderr)
+    print("[farmpulse-sidecar] " + msg, file=sys.stderr, flush=True)
 
 def spawn_detach(argv):
-    """Отдельная session — иначе systemd при Type=oneshot убивает дочерний reboot в cgroup."""
     try:
         subprocess.Popen(
             argv,
@@ -79,16 +78,31 @@ def spawn_detach(argv):
         return False
 
 def do_reboot_from_server():
-    for path in ("/hive/sbin/sreboot", shutil.which("sreboot") or "", "/sbin/reboot", "/usr/sbin/reboot"):
-        if path and os.path.isfile(path):
-            if spawn_detach([path]):
-                log_err("reboot scheduled via " + path)
-                return
+    # 1) Hive — штатный sreboot
+    if os.path.isfile("/hive/sbin/sreboot"):
+        if spawn_detach(["/hive/sbin/sreboot"]):
+            log_err("reboot: spawned /hive/sbin/sreboot")
+            return
+    # 2) systemctl reboot — просит PID 1 (не дочерний «reboot» в cgroup), KillMode в unit не нужен
     sc = shutil.which("systemctl")
-    if sc and spawn_detach([sc, "reboot"]):
-        log_err("reboot scheduled via systemctl")
-        return
-    log_err("reboot: no sreboot/reboot/systemctl found")
+    if sc:
+        try:
+            r = subprocess.run([sc, "reboot"], timeout=90)
+            log_err("systemctl reboot rc=%s" % (r.returncode,))
+            if r.returncode == 0:
+                return
+        except Exception as ex:
+            log_err("systemctl reboot: " + str(ex))
+    alt = shutil.which("sreboot")
+    if alt and os.path.isfile(alt):
+        if spawn_detach([alt]):
+            log_err("reboot: spawned " + alt)
+            return
+    for path in ("/sbin/reboot", "/usr/sbin/reboot"):
+        if os.path.isfile(path) and spawn_detach([path]):
+            log_err("reboot: spawned " + path)
+            return
+    log_err("reboot: no working method (systemctl / sreboot / reboot)")
 
 raw = sys.stdin.read()
 if not raw.strip():
@@ -114,6 +128,7 @@ if cmd == "exec":
         do_reboot_from_server()
         sys.exit(0)
     spawn_detach(["/bin/sh", "-c", ex])
+    log_err("exec: spawned /bin/sh -c …")
 PY
 }
 
