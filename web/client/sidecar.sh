@@ -4,7 +4,7 @@
 # Does not read or modify Hive OS HIVE_HOST_URL / hive-agent configuration.
 #
 #   ./sidecar.sh           — один цикл (для systemd)
-#   ./sidecar.sh trace     — один запрос: наглядный вывод, команды НЕ выполняются
+#   ./sidecar.sh trace     — только просмотр ответа; reboot/exec не запускать (для отладки)
 #   FARMPULSE_DEBUG=1      — при обычном запуске писать краткий лог в stderr (для journal)
 #
 set -u
@@ -163,7 +163,9 @@ if [ "$TRACE" = "1" ]; then
   TMP=$(mktemp)
   trap 'rm -f "$TMP"' EXIT
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "FarmPulse trace  (команды из ответа не выполняются)"
+  echo "FarmPulse trace — только просмотр"
+  echo "В этом режиме reboot/exec из ответа НЕ запускаются (чтобы не перезагрузить риг при отладке)."
+  echo "Обычный таймер farmpulse-sidecar выполняет команды автоматически."
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "Время:    $(date '+%Y-%m-%d %H:%M:%S %Z')"
   echo "Ферма:    id_rig=$FARM_ID"
