@@ -13,7 +13,10 @@
 | Файл | `api/v2/farms/config.json` |
 | Обновление | `api/worker/api.php` при `hello` / `stats` / `message` |
 
-Этот Python-сервис **не** заменяет worker автоматически: при старте можно подтянуть снимок из JSON (`FARMPULSE_BOOTSTRAP_CONFIG`), дальше — обновления через `POST /internal/heartbeat` (позже можно вызывать из того же места, что и запись в `config.json`).
+Этот Python-сервис получает обновления так:
+
+- **Вариант 1 (опционально):** при старте — `FARMPULSE_BOOTSTRAP_CONFIG` → чтение `config.json` один раз.
+- **Вариант 2 (основной):** после каждого успешного сохранения `config.json` в **`api/worker/api.php`** вызывается `POST /internal/heartbeat` (если на сервере есть **`api/v2/farms/app_api_sync.json`** — см. `app_api_sync.json.example`).
 
 ---
 

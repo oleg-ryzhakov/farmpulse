@@ -4,6 +4,8 @@
 
 Готовый **исправленный** конфиг nginx для `sites-available` (один `server` на 443, без вложенности): [`sites-available-farmpulse.conf`](sites-available-farmpulse.conf) — можно скопировать на сервер целиком в `/etc/nginx/sites-available/farmpulse` (после бэкапа старого файла).
 
+Синхронизация ферм в **Python app-api** после heartbeat рига: скопировать [`api/v2/farms/app_api_sync.json.example`](../api/v2/farms/app_api_sync.json.example) → `api/v2/farms/app_api_sync.json`, указать `api_key` (как `FARMPULSE_APP_API_KEY`) и `base_url` публичного `app-api`. Без этого файла worker только пишет `config.json`, память Python не обновляется.
+
 Файлы на VPS **ниоткуда сами не подтягиваются**: вы один раз кладёте дерево проекта туда через **git** (`clone` / `pull`) или **rsync/scp** с вашего ПК, либо **CI** по push. После обновления кода — при необходимости `pip install -r api-application/server/requirements.txt`, перезапуск `farmpulse-app-api`, `nginx reload` (см. `api-application/README.md`).
 
 ## Варианты

@@ -15,6 +15,8 @@ if (!is_array($config)) {
     $config = ['farms' => []];
 }
 
+require_once __DIR__ . '/app_api_sync.php';
+
 // Simple logger
 $logFile = __DIR__ . '/../v2/requests.log';
 $uri = $_SERVER['REQUEST_URI'] ?? '';
@@ -139,6 +141,7 @@ switch ($op) {
             $config['farms'][$farmId]['token'] = bin2hex(random_bytes(16));
         }
         file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+        farmpulse_app_api_push($config, (string) $farmId);
         $cfg = buildFarmRuntimeConfig($config);
         $serverUrl = $rpcParams['server_url'] ?? ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? ''));
         $cfgSh = buildFarmRuntimeConfigSh($config, (string)$farmId, (string)($config['farms'][$farmId]['password'] ?? ''), (string)$serverUrl);
@@ -212,6 +215,7 @@ switch ($op) {
             // Always include command key so agent doesn't warn on null
             echo json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => ['command' => 'OK']]);
         }
+        farmpulse_app_api_push($config, (string) $farmId);
         break;
 
     case 'message':
@@ -265,6 +269,7 @@ switch ($op) {
                 return (string)($c['id'] ?? '') !== (string)$chosenId;
             }));
             file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+            farmpulse_app_api_push($config, (string) $farmId);
             echo json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => $result]);
         } else {
             echo json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => ['command' => 'OK']]);
