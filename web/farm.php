@@ -101,14 +101,15 @@ $farmId = isset($_GET['id']) ? (string)$_GET['id'] : '';
         <span class="small text-muted" id="heatBadge"></span>
       </div>
       <div class="card-body p-0 table-responsive">
-        <table class="table table-dark table-sm table-striped mb-0">
+        <table class="table table-dark table-sm table-striped mb-0 align-middle">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Temp</th>
+              <th style="min-width:14rem">GPU</th>
+              <th>TEMP</th>
               <th>Fan</th>
               <th>W</th>
-              <th title="По GPU из miner_stats — в разработке">kH/s</th>
+              <th>CORE</th>
+              <th>MEM</th>
             </tr>
           </thead>
           <tbody id="gpuTableBody">

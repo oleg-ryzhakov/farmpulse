@@ -6,3 +6,21 @@ a.farm-link { color:#fff; text-decoration:none; }
 a.farm-link:hover { text-decoration:underline; }
 .btn-primary { background:#ff9800; border-color:#ff9800; }
 .btn-primary:hover { background:#f57c00; border-color:#f57c00; }
+
+.gpu-card-cell { vertical-align: middle; }
+.gpu-card-title { font-weight: 600; font-size: 0.95rem; }
+.gpu-card-sub { margin-top: 0.15rem; max-width: 22rem; }
+.gpu-mini-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  margin-top: 4px;
+  overflow: hidden;
+  min-width: 56px;
+}
+.gpu-mini-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}

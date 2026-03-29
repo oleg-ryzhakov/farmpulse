@@ -37,30 +37,89 @@
         return `<span class="gpu-dot" style="background:${color}"></span>`;
     }
 
-    function buildGpuTableRows(st) {
+    /** Hive: [0, …] или [gpu0, gpu1, …] */
+    function normalizeHiveGpuArray(arr) {
+        if (!Array.isArray(arr) || arr.length === 0) return [];
+        if (arr.length > 1 && Number(arr[0]) === 0) return arr.slice(1);
+        return arr.slice();
+    }
+
+    function gpuMiniBar(pct, hot) {
+        const w = Math.max(0, Math.min(100, pct));
+        const bg = hot ? '#dc3545' : '#0d6efd';
+        return `<div class="gpu-mini-bar" aria-hidden="true"><span style="width:${w}%;background:${bg}"></span></div>`;
+    }
+
+    function renderGpuTable(st) {
         const tbody = document.getElementById('gpuTableBody');
         if (!tbody) return;
-        if (!st || !Array.isArray(st.temp)) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-muted px-3 py-2">Нет данных temp[]</td></tr>';
+        const emptyMsg = '<tr><td colspan="6" class="text-muted px-3 py-3">Нет данных GPU. Убедитесь, что риг шлёт stats (sidecar / Hive agent) и на риге доступен nvidia-smi или /run/hive/gpu-stats.json.</td></tr>';
+
+        const cards = st && Array.isArray(st.gpu_cards) ? st.gpu_cards : [];
+        if (cards.length > 0) {
+            let html = '';
+            cards.forEach((c) => {
+                const t = Number(c.temp);
+                const hot = !Number.isNaN(t) && t >= 80;
+                const fan = Number(c.fan);
+                const tBar = gpuMiniBar(Number.isNaN(t) ? 0 : Math.min(100, t), hot);
+                const fBar = gpuMiniBar(Number.isNaN(fan) ? 0 : fan, false);
+                const name = (c.name && String(c.name).trim()) ? String(c.name) : ('GPU ' + (c.index != null ? c.index : '?'));
+                const memTot = c.mem_total ? String(c.mem_total) : '';
+                const brand = (c.brand && String(c.brand)) ? String(c.brand) : 'nvidia';
+                const line1 = name + (memTot ? ' ' + memTot + ' · ' : ' · ') + brand.toUpperCase();
+                const sub = [c.bus_id, c.vbios].filter(Boolean).join(' · ');
+                const core = (c.core_mhz != null && c.core_mhz !== '') ? String(c.core_mhz) : '—';
+                const mem = (c.mem_mhz != null && c.mem_mhz !== '') ? String(c.mem_mhz) : '—';
+                const wVal = c.w != null && Number(c.w) > 0 ? Math.round(Number(c.w)) : null;
+                const wStr = wVal != null ? wVal + ' W' : '—';
+                const tCell = Number.isNaN(t) ? '—' : (t + '°');
+                const fanStr = Number.isNaN(fan) ? '—' : (fan + '%');
+                html += `<tr>
+<td class="gpu-card-cell"><div class="gpu-card-title text-success">${escapeHtml(line1)}</div>
+<div class="gpu-card-sub small text-muted">${escapeHtml(sub || '—')}</div></td>
+<td class="text-nowrap"><span class="${hot ? 'text-danger fw-bold' : ''}">${escapeHtml(tCell)}</span>${tBar}</td>
+<td>${escapeHtml(fanStr)}${fBar}</td>
+<td>${escapeHtml(wStr)}</td>
+<td>${escapeHtml(core)}</td>
+<td>${escapeHtml(mem)}</td>
+</tr>`;
+            });
+            tbody.innerHTML = html;
             return;
         }
-        const temps = st.temp.slice(1);
-        const fans = (st.fan && Array.isArray(st.fan)) ? st.fan.slice(1) : [];
-        const powers = (st.power && Array.isArray(st.power)) ? st.power.slice(1) : [];
-        const n = Math.max(temps.length, fans.length, powers.length, 0);
+
+        if (!st || !Array.isArray(st.temp)) {
+            tbody.innerHTML = emptyMsg;
+            return;
+        }
+        const temps = normalizeHiveGpuArray(st.temp);
+        const fans = normalizeHiveGpuArray(Array.isArray(st.fan) ? st.fan : []);
+        const powers = normalizeHiveGpuArray(Array.isArray(st.power) ? st.power : []);
+        const n = Math.max(temps.length, fans.length, powers.length);
         if (n === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-muted px-3 py-2">Нет GPU в stats</td></tr>';
+            tbody.innerHTML = emptyMsg;
             return;
         }
         let html = '';
         for (let i = 0; i < n; i++) {
-            const t = temps[i];
-            const fan = fans[i];
-            const w = powers[i];
-            const tStr = (t != null && t !== '' && Number(t) > 0) ? (String(t) + '°') : '—';
-            const fStr = (fan != null && fan !== '') ? (String(fan) + '%') : '—';
-            const wStr = (w != null && w !== '' && Number(w) > 0) ? String(Math.round(Number(w))) : '—';
-            html += `<tr><td>${i}</td><td>${tStr}</td><td>${fStr}</td><td>${wStr}</td><td class="text-muted">—</td></tr>`;
+            const t = Number(temps[i]);
+            const fan = Number(fans[i]);
+            const w = Number(powers[i]);
+            const hot = !Number.isNaN(t) && t >= 80;
+            const tStr = !Number.isNaN(t) && t > 0 ? (t + '°') : '—';
+            const fStr = !Number.isNaN(fan) ? (fan + '%') : '—';
+            const wStr = !Number.isNaN(w) && w > 0 ? (Math.round(w) + ' W') : '—';
+            const tBar = gpuMiniBar(Number.isNaN(t) || t <= 0 ? 0 : Math.min(100, t), hot);
+            const fBar = gpuMiniBar(Number.isNaN(fan) ? 0 : fan, false);
+            html += `<tr>
+<td class="gpu-card-cell"><div class="gpu-card-title">GPU ${i}</div><div class="gpu-card-sub small text-muted">—</div></td>
+<td class="text-nowrap"><span class="${hot ? 'text-danger fw-bold' : ''}">${escapeHtml(tStr)}</span>${tBar}</td>
+<td>${escapeHtml(fStr)}${fBar}</td>
+<td>${escapeHtml(wStr)}</td>
+<td>—</td>
+<td>—</td>
+</tr>`;
         }
         tbody.innerHTML = html;
     }
@@ -75,7 +134,8 @@
         document.getElementById('lastSeen').textContent = farm.last_seen_at || '-';
 
         const temps = (farm.gpu_temps && farm.gpu_temps.length) ? farm.gpu_temps : [];
-        document.getElementById('gpusOnline').textContent = temps.length;
+        const gc = farm.gpu_count != null && farm.gpu_count !== '' ? Number(farm.gpu_count) : temps.length;
+        document.getElementById('gpusOnline').textContent = String(gc);
         document.getElementById('tempsDots').innerHTML = temps.map(gpuDot).join('');
 
         const khs = farm.total_khs;
@@ -110,7 +170,7 @@
             hb.textContent = farm.heat_warning === true ? '⚠ GPU ≥80°C' : '';
         }
 
-        buildGpuTableRows(st);
+        renderGpuTable(st);
 
         const ri = farm.rig_info;
         const rigLine = document.getElementById('rigSummaryLines');

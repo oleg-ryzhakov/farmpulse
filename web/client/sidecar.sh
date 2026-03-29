@@ -269,64 +269,130 @@ temps = [0]
 fans = [0]
 powers = [0]
 jtemp = []
+gpu_cards = []
 
-# Как в hive-agent: первый элемент массива — заглушка (0), далее по GPU
+
+def _nv_num(s):
+    s = (s or "").strip()
+    if not s or "[N/A]" in s.upper() or s.upper() == "N/A":
+        return None
+    try:
+        return float(re.sub(r"[^0-9.+-]", "", s))
+    except ValueError:
+        return None
+
+
+# 1) Полный nvidia-smi → gpu_cards + массивы [0, gpu0, …] (как в hive-agent)
 try:
+    import csv
+    from io import StringIO
+
     r = subprocess.run(
         [
             "nvidia-smi",
-            "--query-gpu=temperature.gpu,temperature.gpu.memory,fan.speed,power.draw,utilization.gpu",
+            "--query-gpu=index,gpu_name,pci.bus_id,vbios_version,memory.total,clocks.current.graphics,clocks.current.memory,power.draw,fan.speed,temperature.gpu,temperature.gpu.memory",
             "--format=csv,noheader,nounits",
         ],
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
         universal_newlines=True,
         timeout=45,
     )
-    if r.returncode == 0:
-        for line in r.stdout.splitlines():
-            line = line.strip()
-            if not line:
+    if r.returncode == 0 and (r.stdout or "").strip():
+        for row in csv.reader(StringIO(r.stdout)):
+            if len(row) < 11:
                 continue
-            parts = [p.strip() for p in line.split(",")]
-            if len(parts) < 5:
-                continue
-            try:
-                tg = float(parts[0])
-                tmem = parts[1].replace("[N/A]", "").strip()
-                fn = float(re.sub(r"[^0-9.]", "", parts[2]) or 0)
-                pwdraw = parts[3].replace("W", "").strip()
-                pwf = float(re.sub(r"[^0-9.]", "", pwdraw) or 0)
-            except (ValueError, IndexError):
-                continue
-            if tg > 0:
-                temps.append(int(tg))
-            else:
-                temps.append(0)
-            fans.append(int(min(100, max(0, fn))))
-            powers.append(int(pwf) if pwf > 0 else 0)
-            if tmem and tmem not in ("[N/A]", "N/A"):
-                try:
-                    jtemp.append(int(float(tmem)))
-                except ValueError:
-                    jtemp.append(0)
+            idx, name, bus, vbios, memtot, cclk, mclk, pdraw, fn, tg, tmem = [x.strip() for x in row[:11]]
+            ti = int(float(_nv_num(idx) or 0))
+            tgpu = _nv_num(tg)
+            tfan = _nv_num(fn)
+            tpw = _nv_num(pdraw)
+            tj = _nv_num(tmem)
+            temps.append(int(tgpu) if tgpu is not None else 0)
+            fans.append(int(min(100, max(0, tfan or 0))))
+            powers.append(int(tpw) if tpw and tpw > 0 else 0)
+            if tj is not None and tj > 0:
+                jtemp.append(int(tj))
             else:
                 jtemp.append(0)
-except (FileNotFoundError, subprocess.TimeoutExpired):
+            mem_mb = ""
+            mnv = _nv_num(memtot)
+            if mnv and mnv > 0:
+                mem_mb = str(int(mnv)) + " MiB"
+            c_hz = _nv_num(cclk)
+            m_hz = _nv_num(mclk)
+            gpu_cards.append(
+                {
+                    "index": ti,
+                    "name": name or "",
+                    "bus_id": bus or "",
+                    "vbios": vbios or "",
+                    "mem_total": mem_mb,
+                    "core_mhz": int(c_hz) if c_hz and c_hz > 0 else None,
+                    "mem_mhz": int(m_hz) if m_hz and m_hz > 0 else None,
+                    "temp": int(tgpu) if tgpu is not None else 0,
+                    "fan": int(min(100, max(0, tfan or 0))),
+                    "w": int(tpw) if tpw and tpw > 0 else 0,
+                    "brand": "nvidia",
+                }
+            )
+except (FileNotFoundError, subprocess.TimeoutExpired, ValueError, ImportError):
     pass
 
-if len(fans) != len(temps):
-    fans = [0] * len(temps)
-if len(powers) != len(temps):
-    powers = [0] * len(temps)
+# 2) Fallback: готовый JSON от Hive (agent.gpu-stats) — без заглушки в начале
+if len(temps) <= 1:
+    HIVE_GPU_STATS = "/run/hive/gpu-stats.json"
+    if os.path.isfile(HIVE_GPU_STATS):
+        try:
+            with open(HIVE_GPU_STATS, encoding="utf-8") as hf:
+                gs = json.load(hf)
+            if isinstance(gs, dict) and isinstance(gs.get("temp"), list) and len(gs["temp"]) > 0:
+                ta = gs["temp"]
+                fa = gs.get("fan") if isinstance(gs.get("fan"), list) else []
+                pa = gs.get("power") if isinstance(gs.get("power"), list) else []
+                busids = gs.get("busids") if isinstance(gs.get("busids"), list) else []
+                brands = gs.get("brand") if isinstance(gs.get("brand"), list) else []
+                n = len(ta)
+                temps = [0]
+                fans = [0]
+                powers = [0]
+                jtemp = []
+                gpu_cards = []
+                for i in range(n):
+                    tgpu = _nv_num(str(ta[i]))
+                    tfan = _nv_num(str(fa[i])) if i < len(fa) else 0
+                    tpw = _nv_num(str(pa[i])) if i < len(pa) else 0
+                    temps.append(int(tgpu) if tgpu is not None else 0)
+                    fans.append(int(min(100, max(0, tfan or 0))))
+                    powers.append(int(tpw) if tpw and tpw > 0 else 0)
+                    jtemp.append(0)
+                    b = str(brands[i]) if i < len(brands) else ""
+                    gpu_cards.append(
+                        {
+                            "index": i,
+                            "name": "",
+                            "bus_id": str(busids[i]) if i < len(busids) else "",
+                            "vbios": "",
+                            "mem_total": "",
+                            "core_mhz": None,
+                            "mem_mhz": None,
+                            "temp": int(tgpu) if tgpu is not None else 0,
+                            "fan": int(min(100, max(0, tfan or 0))),
+                            "w": int(tpw) if tpw and tpw > 0 else 0,
+                            "brand": b,
+                        }
+                    )
+        except (json.JSONDecodeError, TypeError, OSError, ValueError):
+            pass
 
+# 3) Последний fallback: только температура
 if len(temps) <= 1:
     temps = [0]
     try:
         r = subprocess.run(
             ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             universal_newlines=True,
             timeout=45,
         )
@@ -336,12 +402,14 @@ if len(temps) <= 1:
                 if re.match(r"^-?\d+", line):
                     try:
                         t = int(float(line.split()[0]))
-                        if t > 0:
-                            temps.append(t)
+                        temps.append(t)
                     except ValueError:
                         pass
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
+    if len(temps) > 1:
+        fans = [0] * len(temps)
+        powers = [0] * len(temps)
 
 if len(fans) != len(temps):
     fans = [0] * len(temps)
@@ -439,6 +507,9 @@ params = {
     "sys_uptime_sec": sys_uptime_sec,
     "net_ips": net_ips,
 }
+
+if gpu_cards:
+    params["gpu_cards"] = gpu_cards
 
 if len(jtemp) == len(temps) - 1 and any(jtemp):
     params["jtemp"] = [0] + jtemp

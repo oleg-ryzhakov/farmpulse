@@ -20,12 +20,35 @@ function hive_worker_strip_sensitive(array $params): array
  *
  * @param array<int|string,mixed>|mixed $power
  */
+/**
+ * Массивы Hive: либо [0, gpu1, gpu2, …] (sidecar), либо [gpu0, gpu1, …] без заглушки.
+ *
+ * @param array<int|string,mixed> $raw
+ * @return array<int,mixed>
+ */
+function hive_worker_normalize_gpu_array($raw): array
+{
+    if (!is_array($raw)) {
+        return [];
+    }
+    $values = array_values($raw);
+    if ($values === []) {
+        return [];
+    }
+    // Sidecar: первый элемент — заглушка 0
+    if (count($values) > 1 && isset($values[0]) && (int) $values[0] === 0) {
+        return array_slice($values, 1);
+    }
+
+    return $values;
+}
+
 function hive_worker_sum_gpu_power($power): ?float
 {
     if (!is_array($power)) {
         return null;
     }
-    $slice = array_slice(array_values($power), 1);
+    $slice = hive_worker_normalize_gpu_array($power);
     $sum = 0.0;
     $n = 0;
     foreach ($slice as $w) {
@@ -119,7 +142,7 @@ function hive_worker_heat_warning_from_params(array $rpcParams): bool
     if (!isset($rpcParams['temp']) || !is_array($rpcParams['temp'])) {
         return false;
     }
-    $slice = array_slice(array_values($rpcParams['temp']), 1);
+    $slice = hive_worker_normalize_gpu_array($rpcParams['temp']);
     foreach ($slice as $t) {
         if (is_numeric($t) && (float) $t >= 80.0) {
             return true;
@@ -184,12 +207,11 @@ function hive_worker_merge_stats_into_farm(array &$farm, array $rpcParams): void
     }
 
     if (isset($rpcParams['temp']) && is_array($rpcParams['temp'])) {
-        $raw = $rpcParams['temp'];
-        $temps = array_slice($raw, 1);
+        $temps = hive_worker_normalize_gpu_array($rpcParams['temp']);
         $farm['gpu_temps'] = array_values(array_filter($temps, static function ($v) {
-            return is_numeric($v) && (int) $v > 0;
+            return is_numeric($v) && (float) $v > 0;
         }));
-        $farm['gpu_count'] = count($farm['gpu_temps']);
+        $farm['gpu_count'] = $temps !== [] ? count($temps) : count($farm['gpu_temps']);
     }
 
     $hashrates = hive_worker_collect_hashrates($rpcParams);
