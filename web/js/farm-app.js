@@ -50,10 +50,63 @@
         return `<div class="gpu-mini-bar" aria-hidden="true"><span style="width:${w}%;background:${bg}"></span></div>`;
     }
 
-    function renderGpuTable(st) {
+    /** Первый miner_stats с массивом hs (kH/s по умолчанию). */
+    function extractGpuHashratesKhs(st) {
+        if (!st || typeof st !== 'object') return [];
+        const keys = ['miner_stats', 'miner_stats2', 'miner_stats3'];
+        for (let k = 0; k < keys.length; k++) {
+            let ms = st[keys[k]];
+            if (ms == null) continue;
+            if (typeof ms === 'string') {
+                try { ms = JSON.parse(ms); } catch (e) { continue; }
+            }
+            if (!ms || typeof ms !== 'object' || !Array.isArray(ms.hs)) continue;
+            const units = String(ms.hs_units || 'khs').toLowerCase();
+            const out = [];
+            for (let i = 0; i < ms.hs.length; i++) {
+                const raw = Number(ms.hs[i]);
+                if (Number.isNaN(raw)) {
+                    out.push(null);
+                    continue;
+                }
+                let khs = raw;
+                if (units === 'h' || units === 'hs') khs = raw / 1000;
+                else if (units === 'mhs' || units === 'mh') khs = raw * 1000;
+                else if (units === 'ghs' || units === 'gh') khs = raw * 1e6;
+                out.push(khs);
+            }
+            return out;
+        }
+        return [];
+    }
+
+    /** kH/s → подпись как в Hive (1.048 GH и т.д.). */
+    function formatHashrateKhs(khs) {
+        if (khs == null || Number.isNaN(khs) || khs <= 0) return '—';
+        const v = Number(khs);
+        if (v >= 1e6) return (v / 1e6).toFixed(3) + ' GH';
+        if (v >= 1e3) return (v / 1e3).toFixed(2) + ' MH';
+        return Math.round(v) + ' kH';
+    }
+
+    /** Имена GPU из hello (rig_info.gpu) — по индексу. */
+    function rigGpuNameAt(rigInfo, idx) {
+        if (!rigInfo || rigInfo.gpu == null) return '';
+        let g = rigInfo.gpu;
+        if (typeof g === 'string') {
+            try { g = JSON.parse(g); } catch (e) { return g.trim(); }
+        }
+        if (Array.isArray(g) && g[idx] != null) return String(g[idx]).trim();
+        if (typeof g === 'object' && g[String(idx)] != null) return String(g[String(idx)]).trim();
+        return '';
+    }
+
+    function renderGpuTable(st, farm) {
         const tbody = document.getElementById('gpuTableBody');
         if (!tbody) return;
-        const emptyMsg = '<tr><td colspan="6" class="text-muted px-3 py-3">Нет данных GPU. Убедитесь, что риг шлёт stats (sidecar / Hive agent) и на риге доступен nvidia-smi или /run/hive/gpu-stats.json.</td></tr>';
+        const emptyMsg = '<tr><td colspan="7" class="text-muted px-3 py-3">Нет данных GPU. Убедитесь, что риг шлёт stats (sidecar / Hive agent) и на риге доступен nvidia-smi или /run/hive/gpu-stats.json.</td></tr>';
+        const ri = farm && farm.rig_info ? farm.rig_info : null;
+        const hsKhs = extractGpuHashratesKhs(st);
 
         const cards = st && Array.isArray(st.gpu_cards) ? st.gpu_cards : [];
         if (cards.length > 0) {
@@ -64,7 +117,9 @@
                 const fan = Number(c.fan);
                 const tBar = gpuMiniBar(Number.isNaN(t) ? 0 : Math.min(100, t), hot);
                 const fBar = gpuMiniBar(Number.isNaN(fan) ? 0 : fan, false);
-                const name = (c.name && String(c.name).trim()) ? String(c.name) : ('GPU ' + (c.index != null ? c.index : '?'));
+                const idx = c.index != null ? Number(c.index) : 0;
+                let name = (c.name && String(c.name).trim()) ? String(c.name) : rigGpuNameAt(ri, idx);
+                if (!name) name = 'GPU ' + idx;
                 const memTot = c.mem_total ? String(c.mem_total) : '';
                 const brand = (c.brand && String(c.brand)) ? String(c.brand) : 'nvidia';
                 const line1 = name + (memTot ? ' ' + memTot + ' · ' : ' · ') + brand.toUpperCase();
@@ -75,9 +130,11 @@
                 const wStr = wVal != null ? wVal + ' W' : '—';
                 const tCell = Number.isNaN(t) ? '—' : (t + '°');
                 const fanStr = Number.isNaN(fan) ? '—' : (fan + '%');
+                const hr = idx < hsKhs.length && hsKhs[idx] != null ? formatHashrateKhs(hsKhs[idx]) : '—';
                 html += `<tr>
 <td class="gpu-card-cell"><div class="gpu-card-title text-success">${escapeHtml(line1)}</div>
 <div class="gpu-card-sub small text-muted">${escapeHtml(sub || '—')}</div></td>
+<td class="text-nowrap text-light">${escapeHtml(hr)}</td>
 <td class="text-nowrap"><span class="${hot ? 'text-danger fw-bold' : ''}">${escapeHtml(tCell)}</span>${tBar}</td>
 <td>${escapeHtml(fanStr)}${fBar}</td>
 <td>${escapeHtml(wStr)}</td>
@@ -112,8 +169,14 @@
             const wStr = !Number.isNaN(w) && w > 0 ? (Math.round(w) + ' W') : '—';
             const tBar = gpuMiniBar(Number.isNaN(t) || t <= 0 ? 0 : Math.min(100, t), hot);
             const fBar = gpuMiniBar(Number.isNaN(fan) ? 0 : fan, false);
+            const rn = rigGpuNameAt(ri, i);
+            const titleHtml = rn
+                ? `<div class="gpu-card-title text-success">${escapeHtml(rn)}</div>`
+                : `<div class="gpu-card-title">GPU ${i}</div>`;
+            const hr = i < hsKhs.length && hsKhs[i] != null ? formatHashrateKhs(hsKhs[i]) : '—';
             html += `<tr>
-<td class="gpu-card-cell"><div class="gpu-card-title">GPU ${i}</div><div class="gpu-card-sub small text-muted">—</div></td>
+<td class="gpu-card-cell">${titleHtml}<div class="gpu-card-sub small text-muted">—</div></td>
+<td class="text-nowrap text-light">${escapeHtml(hr)}</td>
 <td class="text-nowrap"><span class="${hot ? 'text-danger fw-bold' : ''}">${escapeHtml(tStr)}</span>${tBar}</td>
 <td>${escapeHtml(fStr)}${fBar}</td>
 <td>${escapeHtml(wStr)}</td>
@@ -170,7 +233,7 @@
             hb.textContent = farm.heat_warning === true ? '⚠ GPU ≥80°C' : '';
         }
 
-        renderGpuTable(st);
+        renderGpuTable(st, farm);
 
         const ri = farm.rig_info;
         const rigLine = document.getElementById('rigSummaryLines');

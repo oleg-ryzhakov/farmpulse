@@ -105,6 +105,7 @@ $farmId = isset($_GET['id']) ? (string)$_GET['id'] : '';
           <thead>
             <tr>
               <th style="min-width:14rem">GPU</th>
+              <th>Hash</th>
               <th>TEMP</th>
               <th>Fan</th>
               <th>W</th>
