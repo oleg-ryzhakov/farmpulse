@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/farm.dart';
 import '../services/credential_store.dart';
-import '../services/farmpulse_client.dart';
+import '../services/farmpulse_client.dart' show FarmPulseClient, formatFarmPulseError;
 import 'farm_detail_screen.dart';
 import 'settings_screen.dart';
 
@@ -50,7 +50,7 @@ class _FarmsScreenState extends State<FarmsScreen> {
     } on DioException catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.message ?? e.toString();
+        _error = formatFarmPulseError(e);
         _loading = false;
       });
     } catch (e) {

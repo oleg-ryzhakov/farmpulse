@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/farm_detail.dart';
 import '../models/gpu_card.dart';
-import '../services/farmpulse_client.dart';
+import '../services/farmpulse_client.dart' show FarmPulseClient, formatFarmPulseError;
 import '../utils/formatters.dart';
 import '../utils/stats_parser.dart';
 
@@ -48,7 +48,7 @@ class _FarmDetailScreenState extends State<FarmDetailScreen> {
     } on DioException catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.message ?? e.toString();
+        _error = formatFarmPulseError(e);
         _loading = false;
       });
     } catch (e) {

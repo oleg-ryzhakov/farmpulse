@@ -10,8 +10,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$uri = $_SERVER['REQUEST_URI'];
+$uri = $_SERVER['REQUEST_URI'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
+
+// Реальные скрипты (farms.php, workers.php, …). Если запрос попал сюда через общий api/index.php,
+// подключаем нужный файл вместо заглушек ниже.
+if (str_contains($uri, 'workers.php')) {
+    require __DIR__ . '/workers.php';
+    exit;
+}
+if (str_contains($uri, 'farms.php')) {
+    require __DIR__ . '/farms.php';
+    exit;
+}
+if (str_contains($uri, 'flight.php')) {
+    require __DIR__ . '/flight.php';
+    exit;
+}
+if (str_contains($uri, 'command.php')) {
+    require __DIR__ . '/command.php';
+    exit;
+}
 
 // --- Авторизация ---
 if ($uri === '/api/v2/auth/login' && $method === 'POST') {

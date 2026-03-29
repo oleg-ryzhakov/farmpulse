@@ -80,7 +80,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: ListView(
             children: [
               const Text(
-                'Укажите хост веб-панели FarmPulse. К пути будет добавлен /api (как у сайта).',
+                'Укажите хост веб-панели (достаточно https://ваш-домен). Путь /api подставится сам.\n'
+                'Списки ферм идут в PHP без X-Api-Key; ключ ниже — опционально (другие сервисы).',
                 style: TextStyle(fontSize: 13),
               ),
               const SizedBox(height: 12),
