@@ -7,6 +7,7 @@ class Farm {
     required this.gpuTemps,
     required this.gpuCount,
     this.totalKhs,
+    this.totalPowerW,
     this.summaryMiner,
     this.summaryAlgo,
     this.heatWarning,
@@ -19,6 +20,7 @@ class Farm {
   final List<double> gpuTemps;
   final int gpuCount;
   final double? totalKhs;
+  final double? totalPowerW;
   final String? summaryMiner;
   final String? summaryAlgo;
   final bool? heatWarning;
@@ -39,6 +41,7 @@ class Farm {
       gpuTemps: temps,
       gpuCount: (json['gpu_count'] is num) ? (json['gpu_count'] as num).toInt() : 0,
       totalKhs: (json['total_khs'] as num?)?.toDouble(),
+      totalPowerW: (json['total_power_w'] as num?)?.toDouble(),
       summaryMiner: json['summary_miner'] as String?,
       summaryAlgo: json['summary_algo'] as String?,
       heatWarning: json['heat_warning'] as bool?,

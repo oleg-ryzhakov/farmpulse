@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import '../models/farm.dart';
 import '../services/credential_store.dart';
 import '../services/farmpulse_client.dart' show FarmPulseClient, formatFarmPulseError;
+import '../theme/app_theme.dart';
+import '../widgets/hive_bottom_nav.dart';
+import '../widgets/summary_metric_card.dart';
+import '../widgets/worker_list_tile.dart';
 import 'farm_detail_screen.dart';
 import 'settings_screen.dart';
 
@@ -26,6 +30,7 @@ class _FarmsScreenState extends State<FarmsScreen> {
   var _farms = <Farm>[];
   String? _error;
   bool _loading = true;
+  int _navIndex = 0;
 
   @override
   void initState() {
@@ -107,15 +112,53 @@ class _FarmsScreenState extends State<FarmsScreen> {
     );
   }
 
+  int get _onlineCount => _farms.where((f) => f.status == 'online').length;
+
+  int get _totalGpu => _farms.fold<int>(0, (s, f) => s + f.gpuCount);
+
+  double get _sumPower {
+    var s = 0.0;
+    for (final f in _farms) {
+      final p = f.totalPowerW;
+      if (p != null) s += p;
+    }
+    return s;
+  }
+
+  double get _sumHash {
+    var s = 0.0;
+    for (final f in _farms) {
+      final h = f.totalKhs;
+      if (h != null) s += h;
+    }
+    return s;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('FarmPulse'),
+        automaticallyImplyLeading: false,
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'FarmPulse',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loading ? null : _refresh,
+          ),
+          IconButton(
+            icon: const Icon(Icons.grid_view),
+            onPressed: () {},
           ),
           IconButton(
             icon: const Icon(Icons.settings),
@@ -123,13 +166,28 @@ class _FarmsScreenState extends State<FarmsScreen> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: IndexedStack(
+        index: _navIndex,
+        children: [
+          _buildWorkersTab(),
+          const PlaceholderTab(title: 'Кошельки'),
+          const PlaceholderTab(title: 'Полётные листы'),
+          const PlaceholderTab(title: 'Статистика'),
+          PlaceholderTab(
+            title: 'Ещё\n${_client.apiRootForDisplay}',
+          ),
+        ],
+      ),
+      bottomNavigationBar: HiveBottomNav(
+        currentIndex: _navIndex,
+        onTap: (i) => setState(() => _navIndex = i),
+      ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildWorkersTab() {
     if (_loading && _farms.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
     if (_error != null && _farms.isEmpty) {
       return Center(
@@ -140,7 +198,11 @@ class _FarmsScreenState extends State<FarmsScreen> {
             children: [
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              FilledButton(onPressed: _refresh, child: const Text('Повторить')),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.black),
+                onPressed: _refresh,
+                child: const Text('Повторить'),
+              ),
             ],
           ),
         ),
@@ -161,36 +223,95 @@ class _FarmsScreenState extends State<FarmsScreen> {
         ),
       );
     }
+
     return RefreshIndicator(
+      color: AppColors.accent,
       onRefresh: _refresh,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(8),
-        itemCount: _farms.length + 1,
-        itemBuilder: (context, i) {
-          if (i == 0) {
-            return ListTile(
-              title: Text(_error != null ? 'Ошибка: $_error' : 'Поток: REST'),
-              subtitle: Text(
-                'API: ${_client.apiRootForDisplay}\nВсего: ${_farms.length}',
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Row(
+                children: [
+                  SummaryMetricCard(
+                    title: 'Воркеры',
+                    primary: '$_onlineCount',
+                    secondary: '${_farms.length}',
+                    primaryColor: AppColors.greenHive,
+                    secondaryColor: AppColors.accent,
+                  ),
+                  const SizedBox(width: 8),
+                  SummaryMetricCard(
+                    title: 'GPU',
+                    primary: '$_totalGpu',
+                    secondary: '${_farms.fold<int>(0, (s, f) => s + (f.heatWarning == true ? 1 : 0))}',
+                    primaryColor: AppColors.greenHive,
+                    secondaryColor: AppColors.redHive,
+                  ),
+                  const SizedBox(width: 8),
+                  SummaryMetricCard(
+                    title: 'Потребление',
+                    primary: _sumPower > 0 ? '${_sumPower.toStringAsFixed(1)} W' : '—',
+                    icon: Icons.bolt,
+                    primaryColor: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  SummaryMetricCard(
+                    title: 'HASH',
+                    primary: _sumHash > 0 ? '${(_sumHash / 1e6).toStringAsFixed(3)} GH' : '—',
+                    primaryColor: AppColors.purpleHash,
+                  ),
+                ],
               ),
-            );
-          }
-          final f = _farms[i - 1];
-          final name = f.name;
-          final id = f.id;
-          return Card(
-            child: ListTile(
-              title: Text(name?.isNotEmpty == true ? name! : 'Ферма $id'),
-              subtitle: Text(
-                '${f.status} · GPUs ${f.gpuCount} · last: ${f.lastSeenAt ?? "—"}\n'
-                'temps: ${f.gpuTemps.isEmpty ? "—" : f.gpuTemps.map((t) => t.toStringAsFixed(0)).join(", ")}\n'
-                'hash: ${f.totalKhs != null ? f.totalKhs!.toStringAsFixed(0) : "—"} kH/s',
-              ),
-              isThreeLine: true,
-              onTap: () => _openFarm(id),
             ),
-          );
-        },
+          ),
+          if (_error != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'Предупреждение: $_error',
+                  style: const TextStyle(color: AppColors.redHive, fontSize: 12),
+                ),
+              ),
+            ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  const Text('Все воркеры', style: TextStyle(color: AppColors.textSecondary)),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.filter_list, size: 18),
+                    label: const Text('Фильтры'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, i) {
+                  final f = _farms[i];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: WorkerListTile(
+                      farm: f,
+                      onTap: () => _openFarm(f.id),
+                    ),
+                  );
+                },
+                childCount: _farms.length,
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        ],
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'screens/farms_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/credential_store.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,13 +17,7 @@ class FarmPulseApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'FarmPulse',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: buildFarmPulseTheme(),
       home: const _Bootstrap(),
     );
   }
