@@ -1,92 +1,50 @@
 # FarmPulse — Android-приложение
 
-Папка для **нативного** клиента под Android (не WebView): работа с API FarmPulse, быстрый UI, **системные push-уведомления**.
-
-Контракт и потоки **владелец ↔ сервер** (отдельно от API ферм): [`../docs/MOBILE-CLIENT-SERVER.md`](../docs/MOBILE-CLIENT-SERVER.md).
-
-## Стек (по решению из обсуждения)
-
-| Компонент | Выбор | Зачем |
-|-----------|--------|--------|
-| Фреймворк | **Flutter** | Один код под Android, быстрый UI и hot reload, удобная работа в **Cursor** (как VS Code) |
-| Язык | **Dart** | Язык Flutter; пакеты через `pub.dev` |
-| IDE | **Cursor** + терминал | Основной редактор; **Android Studio** — по необходимости (SDK, эмулятор, редкая отладка) |
-| Сеть | **HTTP-клиент** (`dio` или `http`) | JSON-RPC / REST к вашему бэкенду (тот же хост, что веб-панель, пути вида `/api/...`) |
-| Push | **Firebase Cloud Messaging (FCM)** | Сервер шлёт события в FCM → приложение показывает **системные** уведомления (каналы Android 8+) |
-
-**Только Android** — сборка **APK/AAB**, без iOS.
-
-## Что нужно установить на машине разработчика
-
-1. **Flutter SDK** (stable): [установка под Windows](https://docs.flutter.dev/get-started/install/windows), каталог `flutter\bin` в `PATH`.
-2. **Android SDK** (через Android Studio → SDK Manager или `sdkmanager`): platform-tools, build-tools, нужный API level.
-3. Проверка: `flutter doctor` — исправить всё, что помечено красным.
-4. Согласие лицензий: `flutter doctor --android-licenses`.
-
-Телефон по USB с отладкой или эмулятор — для `flutter run`.
-
-## Где лежит код Flutter
-
-Каркас уже создан в подкаталоге **`farm_pulse_app/`** (рядом с этим `README`).
+Папка для клиента под Android: **Flutter** (не WebView). Работа с тем же HTTP API, что и веб-панель (`/api/v2/farms/…`).
 
 | | |
 |--|--|
 | Каталог проекта | `farmpulse/android/farm_pulse_app/` |
-| Точка входа Dart | `farm_pulse_app/lib/main.dart` |
-| Android (Kotlin, манифест) | `farm_pulse_app/android/` |
-| Идентификатор приложения | `--org ru.itsgood.farmpulse` → пакет `ru.itsgood.farmpulse.farm_pulse_app` |
-| Платформы в репозитории | только **Android** (`flutter create ... --platforms=android`) |
+| Точка входа | `farm_pulse_app/lib/main.dart` |
+| Пакет | `ru.itsgood.farmpulse.farm_pulse_app` |
 
-### Первый запуск на устройстве
+## Стек
 
-1. Подключите телефон с **отладкой по USB** или запустите **эмулятор** в Android Studio (Device Manager).
+| Компонент | Выбор |
+|-----------|--------|
+| Фреймворк | **Flutter** |
+| Сеть | **dio** → JSON REST PHP (`farms.php`, `workers.php`) |
+| Хранение URL | **flutter_secure_storage** |
+
+## Установка и запуск
+
+1. [Flutter SDK](https://docs.flutter.dev/get-started/install/windows) в `PATH`, `flutter doctor` без критичных ошибок.
 2. В терминале:
 
 ```bat
-cd C:\OSPanel\domains\hive-management\farmpulse\android\farm_pulse_app
-flutter devices
+cd farmpulse\android\farm_pulse_app
 flutter pub get
+flutter devices
 flutter run
 ```
 
-`flutter run` по умолчанию возьмёт единственное Android-устройство; если их несколько: `flutter run -d <id>` (id из `flutter devices`).
+3. **Подключение:** на первом экране укажите URL хоста (например `https://farmpulse.its-good.ru`). Суффикс `/api` добавляется автоматически. Поле **X-Api-Key** опционально (резерв под отдельный app-api).
 
-На **эмуляторе** хост `hive-management` не резолвится: для доступа к OSPanel на ПК укажите в приложении базовый URL вида `http://10.0.2.2/...` (проброс на localhost машины разработчика) или реальный IP ПК в LAN.
+4. Список ферм → нажатие открывает **детали** (сводка + GPU, как на `farm.php`).
 
-### Что уже сделано в приложении
+На эмуляторе вместо `hive-management` используйте `http://10.0.2.2/...` или IP ПК в LAN.
 
-- Экран **Подключение**: базовый URL (`http://hive-management/app-api` по умолчанию — локальный OSPanel; на проде `https://<ваш-домен>/app-api`) и **X-Api-Key** (тот же, что `FARMPULSE_APP_API_KEY` на сервере), хранение в **secure storage**.
-- Экран **FarmPulse**: `GET /farms`, **WebSocket** `ws://hive-management/app-api/ws?token=…` (на HTTPS — `wss://…`) для обновлений `farms_snapshot`, pull-to-refresh, индикатор WebSocket.
+## Сборка APK
 
-### Когда «появится» приложение
-
-| Действие | Результат |
-|----------|-----------|
-| `flutter run` | Сборка и установка на подключённый телефон/эмулятор — иконка **FarmPulse** в лаунчере, запуск как обычное приложение. |
-| `flutter build apk` | Файл **`build/app/outputs/flutter-apk/app-release.apk`** — можно копировать на телефон и ставить вручную (нужна подпись release или `flutter build apk --debug` для отладочного APK). |
-
-### Пересоздать с нуля (если понадобится)
-
-Из каталога `farmpulse/android/`:
-
-```bash
-flutter create --org ru.itsgood.farmpulse --platforms=android --project-name farm_pulse_app farm_pulse_app
+```bat
+flutter build apk
 ```
 
-Имя пакета `ru.itsgood.farmpulse` — пример; замените на свой reverse-DNS при необходимости.
+APK: `build/app/outputs/flutter-apk/app-release.apk` (для отладки: `flutter build apk --debug`).
 
-## План работ (черновик дорожной карты)
+## Связь с сервером
 
-1. **Каркас**: `flutter create`, тема, навигация (например `go_router` или встроенный `Navigator`).
-2. **Конфиг**: базовый URL API (prod / dev), хранение токена или логина/пароля (secure storage).
-3. **API-слой**: клиент к существующим эндпоинтам FarmPulse (как в веб-панели и sidecar), модели JSON, обработка ошибок.
-4. **Экраны**: вход / список ферм / детали (по фактическому API).
-5. **FCM**: проект в Firebase Console, `google-services.json` в `android/app`, пакеты `firebase_messaging`, регистрация токена на сервере (эндпоинт на бэкенде — отдельная задача).
-6. **Сборка релиза**: `flutter build apk` или `appbundle` для Google Play.
+- PHP API: `farmpulse/api/`
+- Веб: `farmpulse/web/`
 
-## Связь с репозиторием farmpulse
-
-- Сервер и API: каталоги `../web/`, `../api/`.
-- Документ по подключению ригов (контекст продукта): `../docs/CONNECT-RIG.md`.
-
-Корень **hive-management** в git игнорирует каталог `farmpulse/` (отдельный репозиторий). Версионирование клиента — в репозитории **farmpulse** на GitHub или локальные бэкапы.
+Контракт **владелец ↔ отдельный app-api** (если появится): см. `docs/MOBILE-CLIENT-SERVER.md` — текущее приложение использует **только публичные PHP-эндпоинты веба**.

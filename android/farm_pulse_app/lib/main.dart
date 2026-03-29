@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'config/app_config.dart';
 import 'screens/farms_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/credential_store.dart';
@@ -18,7 +17,10 @@ class FarmPulseApp extends StatelessWidget {
     return MaterialApp(
       title: 'FarmPulse',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.teal,
+          brightness: Brightness.dark,
+        ),
         useMaterial3: true,
       ),
       home: const _Bootstrap(),
@@ -38,38 +40,28 @@ class _BootstrapState extends State<_Bootstrap> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<({String? baseUrl, String? apiKey})>(
-      future: _load(),
+    return FutureBuilder<String?>(
+      future: _store.readBaseUrl(),
       builder: (context, snap) {
-        if (!snap.hasData) {
+        if (snap.connectionState != ConnectionState.done) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        final baseUrl = snap.data!.baseUrl?.trim();
-        final apiKey = snap.data!.apiKey?.trim();
-        final url = (baseUrl != null && baseUrl.isNotEmpty)
-            ? baseUrl
-            : AppConfig.defaultBaseUrl;
-        if (apiKey == null || apiKey.isEmpty) {
+        final raw = snap.data?.trim();
+        if (raw == null || raw.isEmpty) {
           return SettingsScreen(
-            onFirstLaunchSaved: (u, k) {
+            onFirstLaunchSaved: (u, _) {
               Navigator.of(context).pushReplacement<void, void>(
                 MaterialPageRoute<void>(
-                  builder: (_) => FarmsScreen(baseUrl: u, apiKey: k),
+                  builder: (_) => FarmsScreen(baseUrl: u),
                 ),
               );
             },
           );
         }
-        return FarmsScreen(baseUrl: url, apiKey: apiKey);
+        return FarmsScreen(baseUrl: raw);
       },
     );
-  }
-
-  Future<({String? baseUrl, String? apiKey})> _load() async {
-    final baseUrl = await _store.readBaseUrl();
-    final apiKey = await _store.readApiKey();
-    return (baseUrl: baseUrl, apiKey: apiKey);
   }
 }

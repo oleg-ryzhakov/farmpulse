@@ -10,10 +10,19 @@ class CredentialStore {
 
   Future<String?> readApiKey() => _storage.read(key: _kApiKey);
 
-  Future<void> write({required String baseUrl, required String apiKey}) async {
+  Future<void> write({required String baseUrl, String? apiKey}) async {
     await _storage.write(key: _kBaseUrl, value: baseUrl);
-    await _storage.write(key: _kApiKey, value: apiKey);
+    if (apiKey == null || apiKey.isEmpty) {
+      await _storage.delete(key: _kApiKey);
+    } else {
+      await _storage.write(key: _kApiKey, value: apiKey);
+    }
   }
 
   Future<void> clearApiKey() => _storage.delete(key: _kApiKey);
+
+  Future<void> clearAll() async {
+    await _storage.delete(key: _kBaseUrl);
+    await _storage.delete(key: _kApiKey);
+  }
 }

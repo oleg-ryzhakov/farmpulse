@@ -1,23 +1,19 @@
-import 'dart:async';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../models/farm.dart';
 import '../services/credential_store.dart';
 import '../services/farmpulse_client.dart';
+import 'farm_detail_screen.dart';
 import 'settings_screen.dart';
 
 class FarmsScreen extends StatefulWidget {
   const FarmsScreen({
     super.key,
     required this.baseUrl,
-    required this.apiKey,
   });
 
   final String baseUrl;
-  final String apiKey;
 
   @override
   State<FarmsScreen> createState() => _FarmsScreenState();
@@ -26,23 +22,17 @@ class FarmsScreen extends StatefulWidget {
 class _FarmsScreenState extends State<FarmsScreen> {
   final _store = CredentialStore();
   late FarmPulseClient _client;
-  List<Farm> _farms = [];
+  late String _baseUrl;
+  var _farms = <Farm>[];
   String? _error;
   bool _loading = true;
-  bool _wsLive = false;
-  StreamSubscription<dynamic>? _wsSub;
-  WebSocketChannel? _channel;
 
   @override
   void initState() {
     super.initState();
-    _client = FarmPulseClient(baseUrl: widget.baseUrl, apiKey: widget.apiKey);
-    _bootstrap();
-  }
-
-  Future<void> _bootstrap() async {
-    await _refresh();
-    _connectWs();
+    _baseUrl = widget.baseUrl;
+    _client = FarmPulseClient(baseUrl: _baseUrl);
+    _refresh();
   }
 
   Future<void> _refresh() async {
@@ -72,61 +62,30 @@ class _FarmsScreenState extends State<FarmsScreen> {
     }
   }
 
-  void _connectWs() {
-    _wsSub?.cancel();
-    _channel?.sink.close();
-    setState(() => _wsLive = false);
-
-    try {
-      _channel = _client.connectWebSocket();
-      _wsSub = _channel!.stream.listen(
-        (message) {
-          if (message is! String) return;
-          final farms = FarmPulseClient.parseWsSnapshot(message);
-          if (farms != null && mounted) {
-            setState(() {
-              _farms = farms;
-              _wsLive = true;
-            });
-          }
-        },
-        onError: (_) {
-          if (mounted) setState(() => _wsLive = false);
-        },
-        onDone: () {
-          if (mounted) setState(() => _wsLive = false);
-        },
-        cancelOnError: false,
-      );
-    } catch (_) {
-      if (mounted) setState(() => _wsLive = false);
-    }
-  }
-
   Future<void> _openSettings() async {
-    final result = await Navigator.of(context).push<(String, String)?>(
-      MaterialPageRoute<(String, String)?>(
+    final result = await Navigator.of(context).push<(String, String?)?>(
+      MaterialPageRoute<(String, String?)?>(
         builder: (_) => const SettingsScreen(),
       ),
     );
     if (result == null || !mounted) return;
     setState(() {
-      _client = FarmPulseClient(baseUrl: result.$1, apiKey: result.$2);
+      _baseUrl = result.$1;
+      _client = FarmPulseClient(baseUrl: _baseUrl);
     });
     await _refresh();
-    _connectWs();
   }
 
   Future<void> _logout() async {
-    await _store.clearApiKey();
+    await _store.clearAll();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil<void>(
       MaterialPageRoute<void>(
         builder: (ctx) => SettingsScreen(
-          onFirstLaunchSaved: (url, key) {
+          onFirstLaunchSaved: (url, _) {
             Navigator.of(ctx).pushAndRemoveUntil<void>(
               MaterialPageRoute<void>(
-                builder: (_) => FarmsScreen(baseUrl: url, apiKey: key),
+                builder: (_) => FarmsScreen(baseUrl: url),
               ),
               (_) => false,
             );
@@ -137,11 +96,15 @@ class _FarmsScreenState extends State<FarmsScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _wsSub?.cancel();
-    _channel?.sink.close();
-    super.dispose();
+  void _openFarm(String id) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => FarmDetailScreen(
+          baseUrl: _baseUrl,
+          farmId: id,
+        ),
+      ),
+    );
   }
 
   @override
@@ -151,13 +114,8 @@ class _FarmsScreenState extends State<FarmsScreen> {
         title: const Text('FarmPulse'),
         actions: [
           IconButton(
-            icon: Icon(_wsLive ? Icons.cloud_done : Icons.cloud_off),
-            tooltip: _wsLive ? 'WebSocket активен' : 'WebSocket нет',
-            onPressed: _connectWs,
-          ),
-          IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _refresh,
+            onPressed: _loading ? null : _refresh,
           ),
           IconButton(
             icon: const Icon(Icons.settings),
@@ -195,9 +153,9 @@ class _FarmsScreenState extends State<FarmsScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Нет ферм в памяти сервиса (или пустой список).'),
+              const Text('Нет ферм в ответе API.'),
               const SizedBox(height: 8),
-              TextButton(onPressed: _logout, child: const Text('Сменить ключ')),
+              TextButton(onPressed: _logout, child: const Text('Сменить URL')),
             ],
           ),
         ),
@@ -211,19 +169,25 @@ class _FarmsScreenState extends State<FarmsScreen> {
         itemBuilder: (context, i) {
           if (i == 0) {
             return ListTile(
-              title: Text(_error != null ? 'Ошибка: $_error' : 'Поток: ${_wsLive ? "live" : "offline"}'),
-              subtitle: Text('Всего: ${_farms.length}'),
+              title: Text(_error != null ? 'Ошибка: $_error' : 'Поток: REST'),
+              subtitle: Text(
+                'API: ${_client.apiRootForDisplay}\nВсего: ${_farms.length}',
+              ),
             );
           }
           final f = _farms[i - 1];
+          final name = f.name;
+          final id = f.id;
           return Card(
             child: ListTile(
-              title: Text(f.name?.isNotEmpty == true ? f.name! : 'Ферма ${f.id}'),
+              title: Text(name?.isNotEmpty == true ? name! : 'Ферма $id'),
               subtitle: Text(
                 '${f.status} · GPUs ${f.gpuCount} · last: ${f.lastSeenAt ?? "—"}\n'
-                'temps: ${f.gpuTemps.isEmpty ? "—" : f.gpuTemps.map((t) => t.toStringAsFixed(0)).join(", ")}',
+                'temps: ${f.gpuTemps.isEmpty ? "—" : f.gpuTemps.map((t) => t.toStringAsFixed(0)).join(", ")}\n'
+                'hash: ${f.totalKhs != null ? f.totalKhs!.toStringAsFixed(0) : "—"} kH/s',
               ),
               isThreeLine: true,
+              onTap: () => _openFarm(id),
             ),
           );
         },

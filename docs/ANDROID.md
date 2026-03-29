@@ -1,19 +1,12 @@
-# Android-приложение FarmPulse
+# Мобильное приложение FarmPulse (Flutter)
 
-Проект в каталоге `android-app/` — нативный клиент к **тому же HTTP API**, что и веб (`/api/v2/farms/farms.php`, `/api/v2/farms/workers.php`). Отдельный сервер для мобильной версии **не нужен**: достаточно задеплоить актуальный `farmpulse` на хост и указать в приложении базовый URL (например `https://farmpulse.its-good.ru` — суффикс `/api` подставится автоматически).
+Клиент находится в **`farmpulse/android/farm_pulse_app/`** — тот же REST, что и веб-панель:
 
-## Сборка
+- `GET /api/v2/farms/farms.php` — список ферм
+- `GET /api/v2/farms/workers.php?farm_id=…` — детали и `last_stats` (в т.ч. `gpu_cards`, `miner_stats`)
 
-1. Установите [Android Studio](https://developer.android.com/studio) (Iguana+).
-2. **File → Open** → выберите папку `farmpulse/android-app`.
-3. Дождитесь загрузки Gradle (при первом открытии IDE подтянет wrapper и зависимости).
-4. Подключите телефон по USB, включите **Отладка по USB** в настройках разработчика.
-5. Выберите устройство и нажмите **Run**.
+Отдельный бэкенд под приложение не нужен: укажите **базовый URL сайта** (например `https://farmpulse.its-good.ru`), клиент сам добавит `/api`.
 
-## Настройка
+Подробности по установке Flutter и `flutter run`: **[`../android/README.md`](../android/README.md)**.
 
-На главном экране введите URL вашего сайта **без** обязательного `/api` в конце (можно с ним: `https://домен` или `https://домен/api`). Нажмите **Сохранить и загрузить фермы**. Список совпадает с главной страницей веба; откройте ферму — карточка и таблица GPU соответствуют `farm.php` (включая `gpu_cards` и `miner_stats.hs` из `last_stats`).
-
-## Сервер
-
-Менять PHP под мобильное приложение обычно **не требуется**: в `workers.php` уже есть CORS (`Access-Control-Allow-Origin: *`) и полный объект фермы. Главное — чтобы на проде был тот же код API, что и в репозитории `farmpulse`.
+Нативный проект под Android Studio (Kotlin) из корня `farmpulse` **удалён** — единственный клиент в репозитории: **Flutter**.

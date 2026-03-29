@@ -3,12 +3,11 @@ import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../services/credential_store.dart';
 
-/// Если открыт поверх другого экрана — по сохранению делает `pop((url, key))`.
-/// Если первый экран (нельзя pop) — вызывает [onFirstLaunchSaved].
+/// Сохраняет базовый URL к PHP API (`/api/v2/farms/…`). Ключ app-api опционален (резерв).
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, this.onFirstLaunchSaved});
 
-  final void Function(String baseUrl, String apiKey)? onFirstLaunchSaved;
+  final void Function(String baseUrl, String? apiKey)? onFirstLaunchSaved;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -34,7 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final key = await _store.readApiKey();
     if (mounted) {
       setState(() {
-        _urlCtrl.text = url?.trim().isNotEmpty == true ? url! : AppConfig.defaultBaseUrl;
+        _urlCtrl.text = url?.trim().isNotEmpty == true ? url! : AppConfig.defaultBaseUrlHint;
         _keyCtrl.text = key ?? '';
         _loading = false;
       });
@@ -50,15 +49,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final url = _urlCtrl.text.trim().replaceAll(RegExp(r'/$'), '');
+    final url = _urlCtrl.text.trim();
     final key = _keyCtrl.text.trim();
-    await _store.write(baseUrl: url, apiKey: key);
+    await _store.write(baseUrl: url, apiKey: key.isEmpty ? null : key);
     if (!mounted) return;
 
     if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop<(String, String)>((url, key));
+      Navigator.of(context).pop<(String, String?)>((url, key.isEmpty ? null : key));
     } else {
-      widget.onFirstLaunchSaved?.call(url, key);
+      widget.onFirstLaunchSaved?.call(url, key.isEmpty ? null : key);
     }
   }
 
@@ -78,14 +77,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: ListView(
             children: [
+              const Text(
+                'Укажите хост веб-панели FarmPulse. К пути будет добавлен /api (как у сайта).',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _urlCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Базовый URL API',
-                  hintText: AppConfig.defaultBaseUrl,
+                  labelText: 'Базовый URL',
+                  hintText: AppConfig.defaultBaseUrlHint,
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.url,
@@ -100,11 +103,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               TextFormField(
                 controller: _keyCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'X-Api-Key (как FARMPULSE_APP_API_KEY на сервере)',
+                  labelText: 'X-Api-Key (опционально, для будущего app-api)',
                   border: OutlineInputBorder(),
                 ),
                 obscureText: true,
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите ключ' : null,
               ),
               const SizedBox(height: 24),
               FilledButton(
