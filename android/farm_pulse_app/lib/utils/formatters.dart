@@ -1,5 +1,3 @@
-import 'dart:math';
-
 String formatHashrateKhs(double? khs) {
   if (khs == null || khs.isNaN || khs <= 0) return '—';
   final v = khs;

@@ -810,8 +810,8 @@ class _GpuCardTile extends StatelessWidget {
         .toList();
     final plStr = plParts.isEmpty ? '' : 'PL ${plParts.join(", ")}';
     final dParts = <String?>[card.memType, card.vbios, plStr.isEmpty ? null : plStr]
-        .where((s) => s != null && s!.trim().isNotEmpty)
-        .map((e) => e!)
+        .where((s) => s != null && s.trim().isNotEmpty)
+        .map((e) => e as String)
         .toList();
     final detail = dParts.isEmpty ? '—' : dParts.join(' · ');
 
