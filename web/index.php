@@ -65,6 +65,9 @@ require __DIR__ . '/includes/config.php';
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="tab-flights" data-bs-toggle="tab" data-bs-target="#pane-flights" type="button" role="tab">Flightsheets</button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-ewelink" data-bs-toggle="tab" data-bs-target="#pane-ewelink" type="button" role="tab">eWeLink</button>
+                    </li>
                 </ul>
             </div>
             <div class="card-body tab-content tab-outline">
@@ -90,6 +93,31 @@ require __DIR__ . '/includes/config.php';
                         </tbody>
                     </table>
                 </div>
+              </div>
+              <div class="tab-pane fade" id="pane-ewelink" role="tabpanel" aria-labelledby="tab-ewelink">
+                <div class="alert alert-secondary border-secondary text-light" style="background: rgba(33,37,41,.6);">
+                  <p class="mb-2"><strong>eWeLink</strong> — после привязки аккаунта вы сможете выбирать устройства (например Wi‑Fi розетку) в <strong>настройках каждой фермы</strong> и управлять питанием из сервиса.</p>
+                  <p class="mb-0 small text-muted">На сервере нужны Node.js, учётные данные приложения CoolKit (<code>EWELINK_APP_ID</code> / <code>EWELINK_APP_SECRET</code>) и ключ шифрования <code>FARMPULSE_EWELINK_KEY</code> или файл <code>data/ewelink.key</code>.</p>
+                </div>
+                <div id="ewelinkStatus" class="mb-3 small text-muted">Загрузка статуса…</div>
+                <form id="ewelinkForm" class="row g-3" onsubmit="return false;">
+                  <div class="col-md-4">
+                    <label class="form-label" for="ewelinkAccount">Email или телефон</label>
+                    <input type="text" class="form-control bg-dark text-light" id="ewelinkAccount" autocomplete="username" placeholder="user@example.com">
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label" for="ewelinkPassword">Пароль eWeLink</label>
+                    <input type="password" class="form-control bg-dark text-light" id="ewelinkPassword" autocomplete="current-password">
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label" for="ewelinkArea">Код страны</label>
+                    <input type="text" class="form-control bg-dark text-light" id="ewelinkArea" value="+7" placeholder="+7">
+                  </div>
+                  <div class="col-md-3 d-flex align-items-end gap-2 flex-wrap">
+                    <button type="button" class="btn btn-primary" onclick="saveEwelinkAccount()">Сохранить аккаунт</button>
+                    <button type="button" class="btn btn-outline-danger" onclick="removeEwelinkAccount()">Отвязать</button>
+                  </div>
+                </form>
               </div>
               <div class="tab-pane fade" id="pane-flights" role="tabpanel" aria-labelledby="tab-flights">
                 <div class="row g-2 align-items-end">

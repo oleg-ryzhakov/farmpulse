@@ -56,6 +56,10 @@ $farmId = isset($_GET['id']) ? (string)$_GET['id'] : '';
       </div>
     </div>
 
+    <div class="alert alert-secondary border-secondary mb-4" style="background: rgba(33,37,41,.5); color: #dee2e6;">
+      <strong>eWeLink:</strong> если аккаунт eWeLink уже привязан на главной странице (вкладка «eWeLink»), здесь позже можно будет выбрать устройство для этой фермы (розетка и т.д.). Сейчас привязка устройств к фермам — в следующем шаге разработки.
+    </div>
+
     <div class="card mb-4">
       <div class="card-header d-flex justify-content-between align-items-center">
         <div>Flight sheet</div>

@@ -1,0 +1,13 @@
+{
+  "name": "ewelink-node",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CLI login для CoolKit eWeLink (ewelink-api-next)",
+  "scripts": {
+    "login": "node login.mjs"
+  },
+  "dependencies": {
+    "ewelink-api-next": "^1.0.4"
+  }
+}

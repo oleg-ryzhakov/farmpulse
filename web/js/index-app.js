@@ -332,6 +332,64 @@ function deleteFarm() {
     .catch(error => console.error('Error deleting worker:', error));
 }
 
+function loadEwelinkStatus() {
+    const el = document.getElementById('ewelinkStatus');
+    if (!el) return Promise.resolve();
+    return fetch(API + '/v2/integrations/ewelink.php')
+        .then(r => r.json())
+        .then(data => {
+            if (data.connected) {
+                el.innerHTML = 'Аккаунт подключён: <strong>' + (data.account_masked || '—') + '</strong>' +
+                    (data.region ? ' · регион ' + data.region : '') +
+                    (data.connected_at ? ' · ' + data.connected_at + ' UTC' : '');
+                el.classList.remove('text-danger');
+            } else {
+                el.textContent = 'Аккаунт eWeLink не привязан.';
+                el.classList.remove('text-danger');
+            }
+        })
+        .catch(() => {
+            el.textContent = 'Не удалось загрузить статус eWeLink (проверьте API и Node.js на сервере).';
+            el.classList.add('text-danger');
+        });
+}
+
+function saveEwelinkAccount() {
+    const account = document.getElementById('ewelinkAccount').value.trim();
+    const password = document.getElementById('ewelinkPassword').value;
+    const area_code = document.getElementById('ewelinkArea').value.trim() || '+7';
+    if (!account || !password) {
+        alert('Введите email/телефон и пароль');
+        return;
+    }
+    fetch(API + '/v2/integrations/ewelink.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account, password, area_code })
+    })
+    .then(async res => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(data.message || data.msg || ('HTTP ' + res.status));
+        }
+        return data;
+    })
+    .then(() => {
+        document.getElementById('ewelinkPassword').value = '';
+        loadEwelinkStatus();
+        alert('Аккаунт eWeLink сохранён. Устройства можно будет привязать в настройках фермы.');
+    })
+    .catch(err => alert('Ошибка: ' + err.message));
+}
+
+function removeEwelinkAccount() {
+    if (!confirm('Отвязать аккаунт eWeLink?')) return;
+    fetch(API + '/v2/integrations/ewelink.php', { method: 'DELETE' })
+        .then(r => r.json())
+        .then(() => loadEwelinkStatus())
+        .catch(err => alert('Ошибка: ' + err.message));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refreshCountdownLabel').textContent = humanizeInterval(refreshIntervalMs);
     document.querySelectorAll('#refreshDropdown + .dropdown-menu .dropdown-item').forEach(a => {
@@ -344,6 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     loadFarms();
     setRefreshInterval(refreshIntervalMs);
+    loadEwelinkStatus();
     try { loadCoins(); } catch(_){ }
     const coinSel = document.getElementById('fsCoinSel');
     if (coinSel) coinSel.addEventListener('change', onCoinChange);
