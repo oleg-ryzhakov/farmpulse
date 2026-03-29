@@ -2,7 +2,7 @@
 /**
  * Интеграция eWeLink: привязка аккаунта по логину/паролю через ewelink-api-next (Node CLI).
  *
- * Требуется: Node.js в PATH, npm-зависимости в farmpulse/integrations/ewelink-node/
+ * Требуется: Node.js в PATH, npm-зависимости в api/ewelink-node/ (npm ci)
  * Переменные окружения: EWELINK_APP_ID, EWELINK_APP_SECRET (CoolKit Developer Center)
  * Ключ шифрования: FARMPULSE_EWELINK_KEY (≥16 символов) или файл data/ewelink.key
  */
@@ -21,7 +21,7 @@ require_once __DIR__ . '/ewelink-storage.php';
 $method = $_SERVER['REQUEST_METHOD'];
 $dataDir = ewelink_data_dir();
 $statePath = ewelink_state_path();
-$scriptPath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'integrations' . DIRECTORY_SEPARATOR . 'ewelink-node' . DIRECTORY_SEPARATOR . 'login.mjs';
+$scriptPath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'ewelink-node' . DIRECTORY_SEPARATOR . 'login.mjs';
 
 function ewelink_read_state(): ?array
 {

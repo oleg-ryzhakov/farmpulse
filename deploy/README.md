@@ -2,6 +2,8 @@
 
 На прод нужны **`web/`** (включая **`web/client/`** — установщик для ригов: `wget …/client/install.sh`) и **`api/`**. Для мобильного API в памяти — ещё **`api-application/server/`** (Python). Папки `docs/`, примеры nginx — не обязательны для работы сайта.
 
+**eWeLink (привязка аккаунта):** Node-скрипт лежит в **`api/ewelink-node/`** (входит в деплой вместе с `api/`). После `git pull` на сервере один раз: `cd api/ewelink-node && npm ci`, на VPS нужны Node.js, переменные `EWELINK_APP_ID` / `EWELINK_APP_SECRET` и ключ `FARMPULSE_EWELINK_KEY` (см. комментарии в `api/v2/integrations/ewelink.php`).
+
 Готовый **исправленный** конфиг nginx для `sites-available` (один `server` на 443, без вложенности): [`sites-available-farmpulse.conf`](sites-available-farmpulse.conf) — можно скопировать на сервер целиком в `/etc/nginx/sites-available/farmpulse` (после бэкапа старого файла).
 
 Синхронизация ферм в **Python app-api** после heartbeat рига: скопировать [`api/v2/farms/app_api_sync.json.example`](../api/v2/farms/app_api_sync.json.example) → `api/v2/farms/app_api_sync.json`, указать `api_key` (как `FARMPULSE_APP_API_KEY`) и `base_url` публичного `app-api`. Без этого файла worker только пишет `config.json`, память Python не обновляется.
