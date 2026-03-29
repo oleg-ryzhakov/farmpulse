@@ -101,6 +101,46 @@
         return '';
     }
 
+    /** Блок как в Hive: GPU n, шина, модель+VRAM+чип, тип памяти·vbios·PL. */
+    function buildGpuCellBlock(opts) {
+        const idx = opts.idx;
+        const bus = (opts.bus && String(opts.bus).trim()) ? String(opts.bus) : '—';
+        const name = (opts.name && String(opts.name).trim()) ? String(opts.name) : '';
+        const isPlaceholder = /^GPU\s+\d+$/i.test(name);
+        const memTot = (opts.memTot && String(opts.memTot).trim()) ? String(opts.memTot) : '';
+        const brand = (opts.brand && String(opts.brand).trim()) ? String(opts.brand) : 'nvidia';
+        const chip = brand.toUpperCase();
+        const memType = (opts.memType && String(opts.memType).trim()) ? String(opts.memType) : '';
+        const vbios = (opts.vbios && String(opts.vbios).trim()) ? String(opts.vbios) : '';
+        const plParts = [opts.plim_min, opts.plim_def, opts.plim_max].filter(function (x) {
+            return x != null && String(x).trim() !== '';
+        });
+        const plStr = plParts.length ? ('PL ' + plParts.join(', ')) : '';
+        const dParts = [memType, vbios, plStr].filter(function (x) {
+            return x != null && String(x).trim() !== '';
+        });
+        const lineDetail = dParts.length ? dParts.join(' · ') : '—';
+
+        const modelName = name && !isPlaceholder ? name : '';
+        let lineModel;
+        if (modelName) {
+            lineModel = '<span class="text-success fw-semibold">' + escapeHtml(modelName) + '</span>'
+                + (memTot ? '<span class="text-muted"> ' + escapeHtml(memTot) + '</span>' : '')
+                + '<span class="text-muted"> · ' + escapeHtml(chip) + '</span>';
+        } else if (memTot) {
+            lineModel = '<span class="text-muted">' + escapeHtml(memTot) + ' · ' + escapeHtml(chip) + '</span>';
+        } else {
+            lineModel = '<span class="text-muted">—</span>';
+        }
+
+        return '<div class="gpu-card-stack">'
+            + '<div class="gpu-card-idx text-info fw-semibold">' + escapeHtml('GPU ' + idx) + '</div>'
+            + '<div class="gpu-card-bus small text-muted">' + escapeHtml(bus) + '</div>'
+            + '<div class="gpu-card-line-model small">' + lineModel + '</div>'
+            + '<div class="gpu-card-sub small text-muted">' + escapeHtml(lineDetail) + '</div>'
+            + '</div>';
+    }
+
     function renderGpuTable(st, farm) {
         const tbody = document.getElementById('gpuTableBody');
         if (!tbody) return;
@@ -119,11 +159,8 @@
                 const fBar = gpuMiniBar(Number.isNaN(fan) ? 0 : fan, false);
                 const idx = c.index != null ? Number(c.index) : 0;
                 let name = (c.name && String(c.name).trim()) ? String(c.name) : rigGpuNameAt(ri, idx);
-                if (!name) name = 'GPU ' + idx;
                 const memTot = c.mem_total ? String(c.mem_total) : '';
                 const brand = (c.brand && String(c.brand)) ? String(c.brand) : 'nvidia';
-                const line1 = name + (memTot ? ' ' + memTot + ' · ' : ' · ') + brand.toUpperCase();
-                const sub = [c.bus_id, c.vbios].filter(Boolean).join(' · ');
                 const core = (c.core_mhz != null && c.core_mhz !== '') ? String(c.core_mhz) : '—';
                 const mem = (c.mem_mhz != null && c.mem_mhz !== '') ? String(c.mem_mhz) : '—';
                 const wVal = c.w != null && Number(c.w) > 0 ? Math.round(Number(c.w)) : null;
@@ -131,9 +168,20 @@
                 const tCell = Number.isNaN(t) ? '—' : (t + '°');
                 const fanStr = Number.isNaN(fan) ? '—' : (fan + '%');
                 const hr = idx < hsKhs.length && hsKhs[idx] != null ? formatHashrateKhs(hsKhs[idx]) : '—';
+                const cell = buildGpuCellBlock({
+                    idx: idx,
+                    bus: c.bus_id,
+                    name: name,
+                    memTot: memTot,
+                    brand: brand,
+                    memType: c.mem_type,
+                    vbios: c.vbios,
+                    plim_min: c.plim_min,
+                    plim_def: c.plim_def,
+                    plim_max: c.plim_max
+                });
                 html += `<tr>
-<td class="gpu-card-cell"><div class="gpu-card-title text-success">${escapeHtml(line1)}</div>
-<div class="gpu-card-sub small text-muted">${escapeHtml(sub || '—')}</div></td>
+<td class="gpu-card-cell">${cell}</td>
 <td class="text-nowrap text-light">${escapeHtml(hr)}</td>
 <td class="text-nowrap"><span class="${hot ? 'text-danger fw-bold' : ''}">${escapeHtml(tCell)}</span>${tBar}</td>
 <td>${escapeHtml(fanStr)}${fBar}</td>
@@ -170,12 +218,21 @@
             const tBar = gpuMiniBar(Number.isNaN(t) || t <= 0 ? 0 : Math.min(100, t), hot);
             const fBar = gpuMiniBar(Number.isNaN(fan) ? 0 : fan, false);
             const rn = rigGpuNameAt(ri, i);
-            const titleHtml = rn
-                ? `<div class="gpu-card-title text-success">${escapeHtml(rn)}</div>`
-                : `<div class="gpu-card-title">GPU ${i}</div>`;
+            const fbCell = buildGpuCellBlock({
+                idx: i,
+                bus: '—',
+                name: rn || '',
+                memTot: '',
+                brand: 'nvidia',
+                memType: '',
+                vbios: '',
+                plim_min: null,
+                plim_def: null,
+                plim_max: null
+            });
             const hr = i < hsKhs.length && hsKhs[i] != null ? formatHashrateKhs(hsKhs[i]) : '—';
             html += `<tr>
-<td class="gpu-card-cell">${titleHtml}<div class="gpu-card-sub small text-muted">—</div></td>
+<td class="gpu-card-cell">${fbCell}</td>
 <td class="text-nowrap text-light">${escapeHtml(hr)}</td>
 <td class="text-nowrap"><span class="${hot ? 'text-danger fw-bold' : ''}">${escapeHtml(tStr)}</span>${tBar}</td>
 <td>${escapeHtml(fStr)}${fBar}</td>

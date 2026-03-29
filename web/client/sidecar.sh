@@ -282,7 +282,15 @@ def _nv_num(s):
         return None
 
 
-def _merge_gpu_detect_names(cards):
+def _norm_bus_id(bus):
+    bus = (bus or "").strip()
+    if bus.startswith("00000000:"):
+        bus = bus[10:]
+    return bus
+
+
+def _merge_gpu_detect_meta(cards):
+    """Hive gpu_detect.json: name, busid, mem, vbios, mem_type, plim_*, subvendor (см. gpu-detect listjson)."""
     paths = [
         os.environ.get("GPU_DETECT_JSON", ""),
         "/hive/gpu/gpu_detect.json",
@@ -300,15 +308,65 @@ def _merge_gpu_detect_names(cards):
             for i, c in enumerate(cards):
                 if i >= len(nv):
                     break
-                nm = (nv[i].get("name") or nv[i].get("model") or "").strip()
-                bus = str(nv[i].get("busid") or nv[i].get("bus_id") or "").strip()
+                g = nv[i]
+                nm = (g.get("name") or g.get("model") or "").strip()
+                bus = _norm_bus_id(str(g.get("busid") or g.get("bus_id") or ""))
+                vb = str(g.get("vbios") or "").strip()
+                mem = str(g.get("mem") or "").strip()
+                mt = str(g.get("mem_type") or "").strip()
+                sv = str(g.get("subvendor") or "").strip()
+                pl0 = str(g.get("plim_min") or "").strip()
+                pl1 = str(g.get("plim_def") or "").strip()
+                pl2 = str(g.get("plim_max") or "").strip()
                 if nm and not (c.get("name") or "").strip():
                     c["name"] = nm
                 if bus and not (c.get("bus_id") or "").strip():
                     c["bus_id"] = bus
+                if vb and not (c.get("vbios") or "").strip():
+                    c["vbios"] = vb
+                if mem and not (c.get("mem_total") or "").strip():
+                    c["mem_total"] = mem
+                if mt and not (str(c.get("mem_type") or "").strip()):
+                    c["mem_type"] = mt
+                if sv and not (str(c.get("subvendor") or "").strip()):
+                    c["subvendor"] = sv
+                if pl0 or pl1 or pl2:
+                    c["plim_min"] = pl0
+                    c["plim_def"] = pl1
+                    c["plim_max"] = pl2
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             continue
         break
+
+
+def _fill_vbios_from_smi(cards):
+    if not cards:
+        return
+    need = [c for c in cards if not (str(c.get("vbios") or "").strip())]
+    if not need:
+        return
+    rows = _nvidia_smi_gpu_cards("index,vbios.version")
+    by_idx = {}
+    for row in rows:
+        row = [x.strip() for x in row]
+        if len(row) < 2:
+            continue
+        ti = int(float(_nv_num(row[0]) or 0))
+        vb = (row[1] or "").strip()
+        if vb and "[n/a]" not in vb.lower():
+            by_idx[ti] = vb
+    for c in cards:
+        if (c.get("vbios") or "").strip():
+            continue
+        ti = c.get("index")
+        if ti is None:
+            continue
+        try:
+            tii = int(ti)
+        except (TypeError, ValueError):
+            continue
+        if tii in by_idx:
+            c["vbios"] = by_idx[tii]
 
 
 def _nvidia_smi_gpu_cards(query_fields):
@@ -378,7 +436,7 @@ try:
             }
         )
     if gpu_cards:
-        _merge_gpu_detect_names(gpu_cards)
+        _merge_gpu_detect_meta(gpu_cards)
 except (FileNotFoundError, subprocess.TimeoutExpired, ValueError, ImportError):
     pass
 
@@ -426,7 +484,7 @@ if len(temps) <= 1:
                         }
                     )
                 if gpu_cards:
-                    _merge_gpu_detect_names(gpu_cards)
+                    _merge_gpu_detect_meta(gpu_cards)
         except (json.JSONDecodeError, TypeError, OSError, ValueError):
             pass
 
@@ -475,7 +533,10 @@ if len(temps) > 1 and not gpu_cards:
                 "brand": "nvidia",
             }
         )
-    _merge_gpu_detect_names(gpu_cards)
+    _merge_gpu_detect_meta(gpu_cards)
+
+if gpu_cards:
+    _fill_vbios_from_smi(gpu_cards)
 
 if len(fans) != len(temps):
     fans = [0] * len(temps)
