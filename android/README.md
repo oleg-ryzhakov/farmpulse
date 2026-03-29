@@ -51,10 +51,12 @@ flutter run
 
 `flutter run` по умолчанию возьмёт единственное Android-устройство; если их несколько: `flutter run -d <id>` (id из `flutter devices`).
 
+На **эмуляторе** хост `hive-management` не резолвится: для доступа к OSPanel на ПК укажите в приложении базовый URL вида `http://10.0.2.2/...` (проброс на localhost машины разработчика) или реальный IP ПК в LAN.
+
 ### Что уже сделано в приложении
 
-- Экран **Подключение**: базовый URL (`https://farmpulse.its-good.ru/app-api` по умолчанию) и **X-Api-Key** (тот же, что `FARMPULSE_APP_API_KEY` на сервере), хранение в **secure storage**.
-- Экран **FarmPulse**: `GET /farms`, **WebSocket** `wss://…/app-api/ws?token=…` для обновлений `farms_snapshot`, pull-to-refresh, индикатор WebSocket.
+- Экран **Подключение**: базовый URL (`http://hive-management/app-api` по умолчанию — локальный OSPanel; на проде `https://<ваш-домен>/app-api`) и **X-Api-Key** (тот же, что `FARMPULSE_APP_API_KEY` на сервере), хранение в **secure storage**.
+- Экран **FarmPulse**: `GET /farms`, **WebSocket** `ws://hive-management/app-api/ws?token=…` (на HTTPS — `wss://…`) для обновлений `farms_snapshot`, pull-to-refresh, индикатор WebSocket.
 
 ### Когда «появится» приложение
 

@@ -263,11 +263,21 @@ def load_env(path):
 
 e = load_env(os.environ["ENV_FILE"])
 pw = e.get("FARM_PASSWORD", "")
+rig_id = e.get("FARM_ID", "")
 
 temps = [0]
+fans = [0]
+powers = [0]
+jtemp = []
+
+# Как в hive-agent: первый элемент массива — заглушка (0), далее по GPU
 try:
     r = subprocess.run(
-        ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"],
+        [
+            "nvidia-smi",
+            "--query-gpu=temperature.gpu,temperature.gpu.memory,fan.speed,power.draw,utilization.gpu",
+            "--format=csv,noheader,nounits",
+        ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         universal_newlines=True,
@@ -276,21 +286,165 @@ try:
     if r.returncode == 0:
         for line in r.stdout.splitlines():
             line = line.strip()
-            if re.match(r"^-?\d+", line):
+            if not line:
+                continue
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) < 5:
+                continue
+            try:
+                tg = float(parts[0])
+                tmem = parts[1].replace("[N/A]", "").strip()
+                fn = float(re.sub(r"[^0-9.]", "", parts[2]) or 0)
+                pwdraw = parts[3].replace("W", "").strip()
+                pwf = float(re.sub(r"[^0-9.]", "", pwdraw) or 0)
+            except (ValueError, IndexError):
+                continue
+            if tg > 0:
+                temps.append(int(tg))
+            else:
+                temps.append(0)
+            fans.append(int(min(100, max(0, fn))))
+            powers.append(int(pwf) if pwf > 0 else 0)
+            if tmem and tmem not in ("[N/A]", "N/A"):
                 try:
-                    t = int(float(line.split()[0]))
-                    if t > 0:
-                        temps.append(t)
+                    jtemp.append(int(float(tmem)))
                 except ValueError:
-                    pass
+                    jtemp.append(0)
+            else:
+                jtemp.append(0)
 except (FileNotFoundError, subprocess.TimeoutExpired):
+    pass
+
+if len(fans) != len(temps):
+    fans = [0] * len(temps)
+if len(powers) != len(temps):
+    powers = [0] * len(temps)
+
+if len(temps) <= 1:
+    temps = [0]
+    try:
+        r = subprocess.run(
+            ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=45,
+        )
+        if r.returncode == 0:
+            for line in r.stdout.splitlines():
+                line = line.strip()
+                if re.match(r"^-?\d+", line):
+                    try:
+                        t = int(float(line.split()[0]))
+                        if t > 0:
+                            temps.append(t)
+                    except ValueError:
+                        pass
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+if len(fans) != len(temps):
+    fans = [0] * len(temps)
+if len(powers) != len(temps):
+    powers = [0] * len(temps)
+
+mem = [0, 0]
+try:
+    r = subprocess.run(["free", "-m"], stdout=subprocess.PIPE, universal_newlines=True, timeout=5)
+    if r.returncode == 0:
+        for line in r.stdout.splitlines():
+            if line.startswith("Mem"):
+                w = line.split()
+                if len(w) >= 7:
+                    mem = [int(w[1]), int(w[6])]
+                break
+except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+    pass
+
+df = ""
+try:
+    r = subprocess.run(
+        ["df", "-h", "/"],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        timeout=5,
+    )
+    if r.returncode == 0:
+        lines = [x for x in r.stdout.strip().splitlines() if x.strip()]
+        if len(lines) >= 2:
+            df = lines[-1].split()[3].replace("%", "")
+except (FileNotFoundError, subprocess.TimeoutExpired, IndexError):
+    pass
+
+cpuavg = ["0", "0", "0"]
+try:
+    with open("/proc/loadavg", encoding="utf-8") as f:
+        la = f.read().split()
+        if len(la) >= 3:
+            cpuavg = [la[0], la[1], la[2]]
+except OSError:
+    pass
+
+cputemp = [0]
+try:
+    import glob
+    zones = sorted(glob.glob("/sys/class/thermal/thermal_zone*/temp"))
+    tot = 0
+    n = 0
+    for z in zones[:4]:
+        try:
+            with open(z, encoding="utf-8") as tf:
+                v = int(tf.read().strip())
+                tot += v // 1000
+                n += 1
+        except (OSError, ValueError):
+            continue
+    if n:
+        cputemp = [tot // n]
+except Exception:
+    pass
+
+params = {
+    "v": 2,
+    "rig_id": rig_id,
+    "passwd": pw,
+    "temp": temps,
+    "fan": fans,
+    "power": powers,
+    "df": df,
+    "mem": mem,
+    "cputemp": cputemp,
+    "cpuavg": cpuavg,
+}
+
+if len(jtemp) == len(temps) - 1 and any(jtemp):
+    params["jtemp"] = [0] + jtemp
+
+try:
+    with open("/run/hive/last_cmd_id", encoding="utf-8") as f:
+        lc = f.read().strip()
+        if lc.isdigit():
+            params["last_cmd_id"] = int(lc)
+except OSError:
+    pass
+
+try:
+    with open("/run/hive/last_stat.json", encoding="utf-8") as f:
+        agent = json.load(f)
+    ap = agent.get("params") or {}
+    for k, v in ap.items():
+        if k.startswith("miner") or k.startswith("total_khs"):
+            params[k] = v
+        if k in ("miner_stats", "miner_stats2") or k.startswith("miner_stats"):
+            params[k] = v
+except (OSError, json.JSONDecodeError, TypeError):
     pass
 
 body = {
     "jsonrpc": "2.0",
     "id": 1,
     "method": "stats",
-    "params": {"temp": temps},
+    "params": params,
     "password": pw,
 }
 print(json.dumps(body))

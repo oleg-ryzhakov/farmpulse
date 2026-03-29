@@ -1,29 +1,32 @@
 # farmpulse — nginx + PHP-FPM
 #
+# Локально (OSPanel): домен совпадает с каталогом domains/hive-management → http://hive-management
+# На VPS: замените server_name, root и пути к SSL на свой домен и каталог установки.
+#
 # Сокет: ls /run/php/php*-fpm.sock — подставьте свою версию (у вас php8.3-fpm).
 #
-# Главная: https://farmpulse.its-good.ru/  (каталог на диске .../web, без /web в URL)
-# API:     https://farmpulse.its-good.ru/api/...
+# Главная: http://hive-management/  (каталог на диске .../farmpulse/web, без /web в URL)
+# API:     http://hive-management/api/...
 
 server {
     listen 80;
     listen [::]:80;
-    server_name farmpulse.its-good.ru;
+    server_name hive-management;
     return 301 https://$host$request_uri;
 }
 
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name farmpulse.its-good.ru;
+    server_name hive-management;
 
-    root /var/www/farmpulse/web;
+    root /var/www/hive-management/farmpulse/web;
     index index.php;
 
     # Скрипты установщика: web/client/install.sh → URL /client/install.sh (отдельный alias не нужен)
 
-    ssl_certificate /etc/letsencrypt/live/farmpulse.its-good.ru/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/farmpulse.its-good.ru/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/hive-management/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/hive-management/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
@@ -41,13 +44,13 @@ server {
         proxy_read_timeout 86400;
     }
 
-    # /api/... → файлы в /var/www/farmpulse/api/... (PHP — только во вложенном location)
+    # /api/... → файлы в .../farmpulse/api/... (PHP — только во вложенном location)
     location ^~ /api/ {
-        root /var/www/farmpulse;
+        root /var/www/hive-management/farmpulse;
         try_files $uri $uri/ /api/index.php?$query_string;
 
         location ~ \.php$ {
-            root /var/www/farmpulse;
+            root /var/www/hive-management/farmpulse;
             include snippets/fastcgi-php.conf;
             fastcgi_pass unix:/run/php/php8.3-fpm.sock;
             fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;

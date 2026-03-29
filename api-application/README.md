@@ -26,7 +26,7 @@
 |-------|------|------------|
 | GET | `/health` | Проверка без ключа |
 | GET | `/farms` | JSON-снимок списка ферм |
-| POST | `/internal/heartbeat` | Тело JSON: `farm_id`, опционально `name`, `gpu_temps`, `gpu_count`, `status` |
+| POST | `/internal/heartbeat` | Тело JSON: `farm_id`, опционально `name`, `gpu_temps`, `gpu_count`, `status`, `total_khs`, `total_power_w`, `last_stats_at`, `rig_info` |
 | WS | `/ws?token=<ключ>` | Подписка: при каждом изменении — сообщение `{"type":"farms_snapshot","data":{...}}` |
 
 Переменная окружения **`FARMPULSE_APP_API_KEY`** обязательна (кроме `/health`).
@@ -44,11 +44,13 @@
 
 Пример nginx: [`../deploy/nginx-site.conf.example`](../deploy/nginx-site.conf.example) (блок `location ^~ /app-api/`).
 
-Снаружи (прод-домен из `deploy/nginx-site.conf.example`):
+Снаружи (базовый URL сайта, локально OSPanel — `deploy/nginx-site.conf.example`):
 
-- `https://farmpulse.its-good.ru/app-api/health`
-- `https://farmpulse.its-good.ru/app-api/farms` — заголовок `X-Api-Key` = значение из `/etc/farmpulse/app-api.env`
-- `wss://farmpulse.its-good.ru/app-api/ws?token=...` — тот же ключ в query
+- `http://hive-management/app-api/health`
+- `http://hive-management/app-api/farms` — заголовок `X-Api-Key` = значение из `/etc/farmpulse/app-api.env`
+- `ws://hive-management/app-api/ws?token=...` — тот же ключ в query (на HTTPS используйте `wss://`)
+
+На проде замените `http://hive-management` на свой публичный `https://...`.
 
 ---
 
@@ -61,12 +63,12 @@
    sudo apt install -y python3 python3-venv python3-pip
    ```
 
-2. **Код** — каталог `api-application/server` в дереве деплоя, например `/var/www/farmpulse/api-application/server`.
+2. **Код** — каталог `api-application/server` в дереве деплоя, например `/var/www/hive-management/farmpulse/api-application/server`.
 
 3. **Виртуальное окружение и зависимости:**
 
    ```bash
-   cd /var/www/farmpulse/api-application/server
+   cd /var/www/hive-management/farmpulse/api-application/server
    python3 -m venv .venv
    . .venv/bin/activate
    pip install -r requirements.txt
@@ -98,8 +100,8 @@
    Через HTTPS (как в браузере):
 
    ```bash
-   curl -sS https://farmpulse.its-good.ru/app-api/health
-   curl -sS -H "X-Api-Key: $(grep FARMPULSE_APP_API_KEY /etc/farmpulse/app-api.env | cut -d= -f2-)" https://farmpulse.its-good.ru/app-api/farms
+   curl -sS http://hive-management/app-api/health
+   curl -sS -H "X-Api-Key: $(grep FARMPULSE_APP_API_KEY /etc/farmpulse/app-api.env | cut -d= -f2-)" http://hive-management/app-api/farms
    ```
 
 ---
@@ -107,7 +109,7 @@
 ## Локальная отладка (Windows / разработка)
 
 ```bat
-cd farmpulse\api-application\server
+cd hive-management\farmpulse\api-application\server
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
@@ -121,7 +123,7 @@ uvicorn main:app --reload --host 127.0.0.1 --port 8000
 
 ## Если `curl …/app-api/health` возвращает HTML («Hive OS Management»)
 
-Значит в **рабочем** конфиге nginx (обычно `/etc/nginx/sites-enabled/…`) **нет** блока `location ^~ /app-api/` из [`deploy/nginx-site.conf.example`](../deploy/nginx-site.conf.example). Файл `*.example` сам nginx не читает — его нужно **вручную вставить** в server `{ }` для `farmpulse.its-good.ru` (443), затем:
+Значит в **рабочем** конфиге nginx (обычно `/etc/nginx/sites-enabled/…`) **нет** блока `location ^~ /app-api/` из [`deploy/nginx-site.conf.example`](../deploy/nginx-site.conf.example). Файл `*.example` сам nginx не читает — его нужно **вручную вставить** в server `{ }` для вашего `server_name` (например `hive-management`), затем:
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
@@ -130,7 +132,7 @@ sudo nginx -t && sudo systemctl reload nginx
 Проверка по шагам:
 
 1. На VPS: `curl -sS http://127.0.0.1:8000/health` — должен быть JSON `{"status":"ok",...}`. Если нет — сначала `systemctl status farmpulse-app-api`.
-2. После правки nginx: снова `curl -sS https://farmpulse.its-good.ru/app-api/health` — JSON, не HTML.
+2. После правки nginx: снова `curl -sS http://hive-management/app-api/health` — JSON, не HTML.
 
 ---
 

@@ -91,11 +91,15 @@ function loadFarms() {
                     const title = 'GPU ' + idx + ' ' + (isNaN(temp) ? '-' : temp + '\u00B0C');
                     return '<span class="gpu-dot" style="background:' + color + '" data-bs-toggle="tooltip" data-bs-placement="top" title="' + title + '"></span>';
                 }).join('');
+                const khs = farm.total_khs != null && farm.total_khs !== '' ? Number(farm.total_khs).toFixed(1) : '—';
+                const pwr = farm.total_power_w != null && farm.total_power_w !== '' ? Math.round(Number(farm.total_power_w)) : '—';
                 row.innerHTML = `
                     <td>${farm.id}</td>
                     <td><a class="farm-link" href="farm.php?id=${encodeURIComponent(farm.id)}">${farm.name}</a></td>
                     <td><span class="badge bg-${isOnline ? 'success' : 'danger'}">${isOnline ? 'online' : 'offline'}</span></td>
                     <td>${gpuDots || '<span class="text-muted">-</span>'}</td>
+                    <td class="text-nowrap">${khs}</td>
+                    <td class="text-nowrap">${pwr}</td>
                     <td>${farm.last_seen_at ?? '-'}</td>
                     <td>
                         <div class="dropdown">

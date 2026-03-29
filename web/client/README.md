@@ -6,7 +6,7 @@
 
 ## Что делает
 
-- Периодически шлёт **`stats`** (температуры GPU через `nvidia-smi`, heartbeat).
+- Периодически шлёт **`stats`** в формате, близком к **hive-agent**: `v`, `rig_id`, `passwd`, `temp` / `fan` / `power` (NVIDIA), `mem`, `df`, `cputemp`, `cpuavg`, при наличии — `jtemp`, `last_cmd_id`; если на риге есть **`/run/hive/last_stat.json`** (штатный агент), подмешиваются поля **`miner*` / `total_khs*` / `miner_stats*`**.
 - Один раз при первом запуске проверяет **`hello`** (id и пароль как в панели FarmPulse).
 - Выполняет команды из ответа API (**reboot** / **exec**, например `sreboot`), которые вы ставите из веб-панели.
 
@@ -14,21 +14,21 @@
 
 ## Установка на риге (SSH)
 
-1. В панели [FarmPulse](https://farmpulse.its-good.ru/) создайте ферму и запомните **ID** и **пароль**.
+1. В панели FarmPulse (локально: [http://hive-management/](http://hive-management/)) создайте ферму и запомните **ID** и **пароль**.
 
 2. Установите клиент (базовый URL **без** хвостового `/`):
 
    ```bash
-   wget -qO- https://farmpulse.its-good.ru/client/install.sh | bash -s -- https://farmpulse.its-good.ru
+   wget -qO- http://hive-management/client/install.sh | bash -s -- http://hive-management
    ```
 
    Либо:
 
    ```bash
-   sudo bash install.sh https://farmpulse.its-good.ru
+   sudo bash install.sh http://hive-management
    ```
 
-3. Первичная настройка (по умолчанию URL уже [https://farmpulse.its-good.ru](https://farmpulse.its-good.ru)):
+3. Первичная настройка (по умолчанию для локальной разработки URL — [http://hive-management](http://hive-management)):
 
    ```bash
    sudo firstrun_farmpulse
@@ -52,7 +52,7 @@ sudo farmpulse-sidecar trace
 
 Если команды не находятся — переустановите клиент (`wget …/client/install.sh | bash …`) или вручную: `sudo ln -sf /opt/farmpulse/bin/farmpulse-watch.sh /usr/bin/farmpulse-watch`.
 
-Показываются URL, тело запроса (`params.temp`), HTTP-код, JSON ответа и кратко `result.command` / `exec`.
+Показываются URL, фрагмент тела (`params`), HTTP-код, JSON ответа и кратко `result.command` / `exec`.
 
 **Цикл** (по умолчанию каждые 5 с; интервал: `farmpulse-watch 10`):
 

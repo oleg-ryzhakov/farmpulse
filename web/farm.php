@@ -55,6 +55,43 @@ $farmId = isset($_GET['id']) ? (string)$_GET['id'] : '';
         </div>
       </div>
     </div>
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card p-3">
+          <div class="text-muted">Hashrate (kH/s)</div>
+          <div class="fs-5" id="totalKhs">-</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card p-3">
+          <div class="text-muted">Power Σ (W)</div>
+          <div class="fs-5" id="totalPower">-</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card p-3">
+          <div class="text-muted">CPU load</div>
+          <div class="fs-5" id="cpuLoad">-</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card p-3">
+          <div class="text-muted">RAM / disk</div>
+          <div class="fs-6" id="memDisk">-</div>
+        </div>
+      </div>
+    </div>
+    <div class="card mb-4">
+      <div class="card-header">Rig (hello)</div>
+      <div class="card-body small text-muted" id="rigInfoBox">—</div>
+    </div>
+    <div class="card mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Последний stats (JSON)</span>
+        <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#lastStatsPre">Показать / скрыть</button>
+      </div>
+      <div class="collapse" id="lastStatsPre"><pre class="card-body small mb-0 text-wrap" style="max-height:420px;overflow:auto" id="lastStatsJson">—</pre></div>
+    </div>
 
     <div class="alert alert-secondary border-secondary mb-4" style="background: rgba(33,37,41,.5); color: #dee2e6;">
       <strong>eWeLink:</strong> если аккаунт eWeLink уже привязан на главной странице (вкладка «eWeLink»), здесь позже можно будет выбрать устройство для этой фермы (розетка и т.д.). Сейчас привязка устройств к фермам — в следующем шаге разработки.

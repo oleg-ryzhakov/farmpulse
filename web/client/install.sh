@@ -2,7 +2,7 @@
 #
 # FarmPulse HiveOS sidecar — bootstrap (run as root).
 #
-#   wget -qO- https://farmpulse.its-good.ru/client/install.sh | bash -s -- https://farmpulse.its-good.ru
+#   wget -qO- http://hive-management/client/install.sh | bash -s -- http://hive-management
 #
 # Does not change Hive OS cloud URL or hive-agent. Installs a separate timer that
 # talks only to FarmPulse /api/worker/api.php.
@@ -11,8 +11,8 @@ set -euo pipefail
 
 BASE="${1:-${FARMPULSE_BASE_URL:-}}"
 if [ -z "$BASE" ]; then
-  echo "Usage: bash install.sh https://farmpulse.its-good.ru" >&2
-  echo "  or:  FARMPULSE_BASE_URL=https://farmpulse.its-good.ru bash install.sh" >&2
+  echo "Usage: bash install.sh http://hive-management" >&2
+  echo "  or:  FARMPULSE_BASE_URL=http://hive-management bash install.sh" >&2
   exit 1
 fi
 BASE="${BASE%/}"

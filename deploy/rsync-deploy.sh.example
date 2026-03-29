@@ -4,8 +4,8 @@
 
 set -euo pipefail
 
-DEPLOY_HOST="${DEPLOY_HOST:-user@farmpulse.its-good.ru}"
-REMOTE_PATH="${REMOTE_PATH:-/var/www/farmpulse}"
+DEPLOY_HOST="${DEPLOY_HOST:-user@your-vps-ip}"
+REMOTE_PATH="${REMOTE_PATH:-/var/www/hive-management/farmpulse}"
 
 # Локально должны быть каталоги web/ (внутри web/ — client/ для установщика), api/
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

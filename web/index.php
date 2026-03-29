@@ -85,6 +85,8 @@ require __DIR__ . '/includes/config.php';
                                 <th>Farm Name</th>
                                 <th>Status</th>
                                 <th>GPUs</th>
+                                <th>kH/s</th>
+                                <th>W</th>
                                 <th>Last seen</th>
                                 <th>Actions</th>
                             </tr>

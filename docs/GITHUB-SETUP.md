@@ -31,11 +31,23 @@ git push -u origin main
 
 ## На VPS (по желанию)
 
+**Только репозиторий farmpulse:**
+
 ```bash
 cd /var/www
 sudo git clone https://github.com/ВАШ_ЛОГИН/farmpulse.git
-# настроить nginx на /var/www/farmpulse/web и api как сейчас
+# nginx: root /var/www/farmpulse/web, api — /var/www/farmpulse/api (см. deploy/nginx-site.conf.example, подставьте пути)
 # создать api/v2/farms/config.json с сервера на основе .example
 ```
 
-Обновление на сервере: `cd /var/www/farmpulse && git pull`.
+Обновление: `cd /var/www/farmpulse && git pull`.
+
+**Монорепозиторий `hive-management` (внутри есть каталог `farmpulse/`):**
+
+```bash
+cd /var/www
+sudo git clone https://github.com/ВАШ_ЛОГИН/hive-management.git
+# nginx: root /var/www/hive-management/farmpulse/web (как в deploy/nginx-site.conf.example)
+```
+
+Обновление: `cd /var/www/hive-management && git pull`.

@@ -19,11 +19,38 @@
         document.getElementById('farmStatus').textContent = farm.status || '-';
         document.getElementById('lastSeen').textContent = farm.last_seen_at || '-';
 
-        const list = await fetch(`${API}/v2/farms/farms.php`).then(r => r.json());
-        const found = (list.farms || []).find(f => String(f.id) === String(farmId));
-        const temps = (found && found.gpu_temps) ? found.gpu_temps : [];
+        const temps = (farm.gpu_temps && farm.gpu_temps.length) ? farm.gpu_temps : [];
         document.getElementById('gpusOnline').textContent = temps.length;
         document.getElementById('tempsDots').innerHTML = temps.map(gpuDot).join('');
+
+        const khs = farm.total_khs;
+        document.getElementById('totalKhs').textContent = (khs != null && khs !== '') ? Number(khs).toFixed(2) : '—';
+        const pw = farm.total_power_w;
+        document.getElementById('totalPower').textContent = (pw != null && pw !== '') ? String(Math.round(Number(pw))) : '—';
+        const st = farm.last_stats || {};
+        const la = st.cpuavg;
+        document.getElementById('cpuLoad').textContent = Array.isArray(la) ? la.join(' / ') : (typeof la === 'string' ? la : '—');
+        const mem = st.mem;
+        const df = st.df;
+        let md = '—';
+        if (Array.isArray(mem) && mem.length >= 2) md = 'RAM ' + mem[0] + ' MiB, своб. ' + mem[1] + ' MiB';
+        if (df) md += (md === '—' ? '' : ' · ') + 'root ' + df;
+        document.getElementById('memDisk').textContent = md;
+
+        const ri = farm.rig_info;
+        const rigEl = document.getElementById('rigInfoBox');
+        if (ri && typeof ri === 'object') {
+            const g = (ri.gpu_count_nvidia != null || ri.gpu_count_amd != null)
+                ? ('GPU: NV ' + (ri.gpu_count_nvidia ?? '—') + ' / AMD ' + (ri.gpu_count_amd ?? '—') + ' / Intel ' + (ri.gpu_count_intel ?? '—'))
+                : '';
+            const ver = ri.version ? ('Hive ' + ri.version) : '';
+            rigEl.textContent = [g, ver, ri.kernel || '', ri.image_version || ''].filter(Boolean).join(' · ') || JSON.stringify(ri);
+        } else rigEl.textContent = '—';
+
+        const js = document.getElementById('lastStatsJson');
+        try {
+            js.textContent = farm.last_stats ? JSON.stringify(farm.last_stats, null, 2) : '—';
+        } catch (e) { js.textContent = '—'; }
 
         const fs = await fetch(`${API}/v2/farms/flight.php?farm_id=${encodeURIComponent(farmId)}`).then(r => r.json());
         if (fs && fs.flightsheet) {

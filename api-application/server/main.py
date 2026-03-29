@@ -69,6 +69,10 @@ def _farm_from_config(fid: str, raw: dict[str, Any]) -> dict[str, Any]:
         "last_seen_at": raw.get("last_seen_at"),
         "gpu_temps": list(raw.get("gpu_temps") or []),
         "gpu_count": int(raw.get("gpu_count") or 0),
+        "total_khs": raw.get("total_khs"),
+        "total_power_w": raw.get("total_power_w"),
+        "last_stats_at": raw.get("last_stats_at"),
+        "rig_info": raw.get("rig_info"),
     }
 
 
@@ -88,6 +92,10 @@ class HeartbeatBody(BaseModel):
     gpu_temps: Optional[list[float]] = None
     gpu_count: Optional[int] = None
     status: Optional[str] = None
+    total_khs: Optional[float] = None
+    total_power_w: Optional[float] = None
+    last_stats_at: Optional[str] = None
+    rig_info: Optional[dict[str, Any]] = None
 
 
 app = FastAPI(title="FarmPulse app API", version="0.1.0")
@@ -131,6 +139,10 @@ async def post_heartbeat(
             "last_seen_at": _utc_now_iso(),
             "gpu_temps": list(body.gpu_temps) if body.gpu_temps is not None else list(prev.get("gpu_temps") or []),
             "gpu_count": int(body.gpu_count) if body.gpu_count is not None else int(prev.get("gpu_count") or 0),
+            "total_khs": body.total_khs if body.total_khs is not None else prev.get("total_khs"),
+            "total_power_w": body.total_power_w if body.total_power_w is not None else prev.get("total_power_w"),
+            "last_stats_at": body.last_stats_at if body.last_stats_at is not None else prev.get("last_stats_at"),
+            "rig_info": body.rig_info if body.rig_info is not None else prev.get("rig_info"),
         }
         if row["gpu_temps"] and row["gpu_count"] == 0:
             row["gpu_count"] = len(row["gpu_temps"])

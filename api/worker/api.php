@@ -16,6 +16,8 @@ if (!is_array($config)) {
 }
 
 require_once __DIR__ . '/app_api_sync.php';
+require_once __DIR__ . '/request_parse.php';
+require_once __DIR__ . '/farm_stats_store.php';
 
 // Simple logger
 $logFile = __DIR__ . '/../v2/requests.log';
@@ -26,16 +28,15 @@ foreach ($_SERVER as $k => $v) { if (strpos($k, 'HTTP_') === 0) { $hdrs[$k] = $v
 $rawBody = file_get_contents('php://input');
 @file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] workerAPI $method $uri\n" . json_encode($hdrs) . "\n" . ($rawBody ?: '') . "\n---\n", FILE_APPEND);
 
-// Parse inputs (query + form + json)
+// Parse inputs (query + gzip/json/msgpack + form)
 $queryId = isset($_GET['id_rig']) ? (string)$_GET['id_rig'] : null;
 $queryMethod = isset($_GET['method']) ? (string)$_GET['method'] : null;
+$contentType = $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? '');
+$contentEncoding = $_SERVER['HTTP_CONTENT_ENCODING'] ?? '';
 $post = [];
-if (!empty($rawBody)) {
-    // JSON
-    $json = json_decode($rawBody, true);
-    if (is_array($json)) { $post = $json; }
-    else {
-        // x-www-form-urlencoded or plain
+if ($rawBody !== '') {
+    $post = hive_worker_parse_request_body($rawBody, $contentType, $contentEncoding);
+    if ($post === []) {
         parse_str($rawBody, $post);
     }
 }
@@ -140,6 +141,7 @@ switch ($op) {
         if (empty($config['farms'][$farmId]['token'])) {
             $config['farms'][$farmId]['token'] = bin2hex(random_bytes(16));
         }
+        hive_worker_merge_hello_into_farm($config['farms'][$farmId], $rpcParams);
         file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
         farmpulse_app_api_push($config, (string) $farmId);
         $cfg = buildFarmRuntimeConfig($config);
@@ -169,14 +171,7 @@ switch ($op) {
         // Heartbeat + optional command delivery (match agent expectations)
         $config['farms'][$farmId]['status'] = 'online';
         $config['farms'][$farmId]['last_seen_at'] = gmdate('Y-m-d H:i:s');
-        // Persist GPU temperatures and count (skip first placeholder)
-        $tempsRaw = $rpcParams['temp'] ?? [];
-        if (is_array($tempsRaw)) {
-            $temps = array_slice($tempsRaw, 1);
-            $temps = array_values(array_filter($temps, function($v){ return is_numeric($v) && intval($v) > 0; }));
-            $config['farms'][$farmId]['gpu_temps'] = $temps;
-            $config['farms'][$farmId]['gpu_count'] = count($temps);
-        }
+        hive_worker_merge_stats_into_farm($config['farms'][$farmId], $rpcParams);
         file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
 
         $rpcId = isset($post['id']) ? $post['id'] : 0;

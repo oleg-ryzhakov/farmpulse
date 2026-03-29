@@ -44,6 +44,10 @@ function farmpulse_app_api_push(array $config, string $farmId): void
         'status' => isset($f['status']) ? (string) $f['status'] : 'online',
         'gpu_temps' => $temps,
         'gpu_count' => isset($f['gpu_count']) ? (int) $f['gpu_count'] : count($temps),
+        'total_khs' => isset($f['total_khs']) && is_numeric($f['total_khs']) ? (float) $f['total_khs'] : null,
+        'total_power_w' => isset($f['total_power_w']) && is_numeric($f['total_power_w']) ? (float) $f['total_power_w'] : null,
+        'last_stats_at' => $f['last_stats_at'] ?? null,
+        'rig_info' => isset($f['rig_info']) && is_array($f['rig_info']) ? $f['rig_info'] : null,
     ];
     $url = $base . '/internal/heartbeat';
     $body = json_encode($payload);

@@ -16,14 +16,14 @@
 
 Скрипт-пример: **`rsync-deploy.sh.example`** — копирует только `web/` и `api/`, не трогает `config.json` на сервере. При использовании Python-сервиса добавьте в rsync каталог **`api-application/`** (или деплойте его отдельной командой).
 
-Скопируйте в `rsync-deploy.sh`, выставьте `DEPLOY_HOST` и путь, сделайте исполняемым: `chmod +x rsync-deploy.sh`.
+Скопируйте в `rsync-deploy.sh`, выставьте `DEPLOY_HOST` (например `user@192.0.2.10`) и при необходимости `REMOTE_PATH` (по умолчанию `/var/www/hive-management/farmpulse`; если на сервере клонирован только `farmpulse` в `/var/www/farmpulse` — задайте его), сделайте исполняемым: `chmod +x rsync-deploy.sh`.
 
 ### 2. Git на сервере
 
 На VPS: клонировать репозиторий (или только каталог `farmpulse`), затем:
 
 ```bash
-cd /var/www/farmpulse && git pull && sudo systemctl reload php8.3-fpm
+cd /var/www/hive-management/farmpulse && git pull && sudo systemctl reload php8.3-fpm
 ```
 
 Чтобы не тащить лишнее, можно:
@@ -46,3 +46,60 @@ cd /var/www/farmpulse && git pull && sudo systemctl reload php8.3-fpm
 ---
 
 PHP-FPM после правок PHP обычно не обязателен к reload, но можно: `sudo systemctl reload php8.3-fpm`.
+
+## Команды после обновления (VPS и риги)
+
+### Сервер (VPS)
+
+Путь к коду подставьте под свою схему: **монорепозиторий** `hive-management` или **только** `farmpulse`.
+
+```bash
+# Монорепозиторий hive-management (в корне есть farmpulse/):
+cd /var/www/hive-management && git pull
+
+# Только репозиторий farmpulse на сервере:
+# cd /var/www/farmpulse && git pull
+
+# PHP: перезагрузить FPM или Apache (имя сервиса под свою версию PHP)
+sudo systemctl reload php8.3-fpm
+# или: sudo systemctl reload apache2
+# или: sudo systemctl reload nginx && sudo systemctl reload php8.3-fpm
+
+# Опционально: расширение msgpack для тел запросов hive-agent в MessagePack
+# sudo pecl install msgpack
+# подключить extension=msgpack.so в php.ini и снова reload php-fpm
+```
+
+**FarmPulse app-api** (uvicorn):
+
+```bash
+cd /var/www/hive-management/farmpulse/api-application/server
+# при необходимости: . .venv/bin/activate && pip install -r requirements.txt
+sudo systemctl restart farmpulse-app-api
+```
+
+**Проверка app-api** (локально в OSPanel домен `hive-management`; на проде — свой `https://…`):
+
+```bash
+curl -sS http://hive-management/app-api/health
+```
+
+### Фермы (Hive OS / Linux с sidecar)
+
+Обновить клиент с панели (базовый URL без завершающего `/`):
+
+```bash
+wget -qO- http://hive-management/client/install.sh | bash -s -- http://hive-management
+```
+
+На проде замените оба вхождения `http://hive-management` на публичный URL, например `https://farm.example.com`.
+
+Обновить только `sidecar.sh` с уже развёрнутого сайта:
+
+```bash
+sudo cp /opt/farmpulse/bin/sidecar.sh /opt/farmpulse/bin/sidecar.sh.bak
+sudo wget -O /opt/farmpulse/bin/sidecar.sh 'http://hive-management/client/sidecar.sh'
+sudo chmod +x /opt/farmpulse/bin/sidecar.sh
+sudo systemctl restart farmpulse-sidecar.timer
+sudo farmpulse-sidecar trace
+```

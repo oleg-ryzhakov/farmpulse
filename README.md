@@ -35,20 +35,20 @@ php -S localhost:8080 -t web web/router-dev.php
 
 ## Продакшен (nginx)
 
-См. **`deploy/nginx-site.conf.example`**: домен **`farmpulse.its-good.ru`**, доступ по IP — **публичный IP дописан в `server_name`** (в файле замените `203.0.113.10` на IP VPS). **`default_server`** в примере не используется: на одном nginx он может быть только один раз.
+См. **`deploy/nginx-site.conf.example`**: локально (OSPanel) домен **`hive-management`** (каталог `domains/hive-management`). На VPS замените `server_name`, `root` и пути к сертификатам на свой домен и каталог (часто корень репозитория: `/var/www/hive-management`, внутри — `farmpulse/`). **`default_server`** в примере не используется: на одном nginx он может быть только один раз.
 
-DNS: запись **A** для `farmpulse.its-good.ru` → IP VPS. HTTPS: `certbot --nginx -d farmpulse.its-good.ru` после того, как домен смотрит на сервер.
+DNS: запись **A** для вашего домена → IP сервера. HTTPS: `certbot --nginx -d hive-management` (или ваш FQDN) после того, как имя смотрит на сервер.
 
 После деплоя скопируйте `api/v2/farms/config.json.example` → `config.json` и задайте фермы.
 
 ## Риги Hive OS
 
-Установка sidecar на риг: **`web/client/README.md`** — `wget https://farmpulse.its-good.ru/client/install.sh` и `firstrun_farmpulse`.
+Установка sidecar на риг: **`web/client/README.md`** — `wget http://hive-management/client/install.sh` и `firstrun_farmpulse` (на проде подставьте публичный URL).
 
 ## URL для рига (worker)
 
-`https://farmpulse.its-good.ru/api/worker/api.php?id_rig=<ID>&method=stats`  
-(после включения HTTPS) или по IP: `http://<IP>/api/worker/api.php?...`
+`http://hive-management/api/worker/api.php?id_rig=<ID>&method=stats`  
+Локально в OSPanel. Снаружи: `https://<ваш-домен>/api/worker/...` или по IP: `http://<IP>/api/worker/api.php?...`
 
 ## Связь с родительским проектом
 

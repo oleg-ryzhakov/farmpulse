@@ -19,10 +19,10 @@
 На риге под root:
 
 ```bash
-wget -qO- https://farmpulse.its-good.ru/client/install.sh | bash -s -- https://farmpulse.its-good.ru
+wget -qO- http://hive-management/client/install.sh | bash -s -- http://hive-management
 ```
 
-Если панель на **другом домене** — подставьте свой **базовый URL без завершающего `/`** (тот же хост, с которого открывается сайт).
+**Базовый URL** — тот же хост, с которого открывается панель, **без завершающего `/`**. Локально в OSPanel это обычно `http://hive-management` (имя каталога в `domains/`). На проде или для рига в интернете подставьте **публичный HTTPS**-URL вида `https://farm.example.com` (или IP: `http://203.0.113.1`).
 
 ## 3. Первичная настройка
 
@@ -32,7 +32,7 @@ sudo firstrun_farmpulse
 
 Интерактивно укажите:
 
-- **URL** (по умолчанию уже подставляется ваш прод-домен).
+- **URL** (по умолчанию для локальной разработки: `http://hive-management`).
 - **ID фермы** — как в панели; на Hive часто подхватывается из `/hive-config/rig.conf` (`RIG_ID`).
 - **Пароль** фермы.
 - **Интервал опроса** в секундах (не меньше 10).
@@ -59,14 +59,14 @@ sudo farmpulse-sidecar trace
 После `git pull` на VPS клиентские скрипты лежат в `web/client/` — их отдаёт nginx как статику. На риге при необходимости обновите бинарники:
 
 ```bash
-sudo wget -O /opt/farmpulse/bin/sidecar.sh 'https://farmpulse.its-good.ru/client/sidecar.sh'
+sudo wget -O /opt/farmpulse/bin/sidecar.sh 'http://hive-management/client/sidecar.sh'
 sudo chmod +x /opt/farmpulse/bin/sidecar.sh
-sudo wget -O /etc/systemd/system/farmpulse-sidecar.service 'https://farmpulse.its-good.ru/client/systemd/farmpulse-sidecar.service'
+sudo wget -O /etc/systemd/system/farmpulse-sidecar.service 'http://hive-management/client/systemd/farmpulse-sidecar.service'
 sudo systemctl daemon-reload
 sudo systemctl restart farmpulse-sidecar.timer
 ```
 
-Если панель на другом хосте — замените `https://farmpulse.its-good.ru` на свой базовый URL в командах `wget`.
+Если панель на другом хосте — замените `http://hive-management` на свой базовый URL в командах `wget`.
 
 Или полностью переустановите клиент той же командой `wget … install.sh | bash …`.
 

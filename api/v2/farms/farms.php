@@ -32,6 +32,10 @@ switch ($method) {
                 'last_seen_at' => $farm['last_seen_at'] ?? null,
                 'gpu_count' => $farm['gpu_count'] ?? 0,
                 'gpu_temps' => $farm['gpu_temps'] ?? [],
+                'total_khs' => $farm['total_khs'] ?? null,
+                'total_power_w' => $farm['total_power_w'] ?? null,
+                'last_stats_at' => $farm['last_stats_at'] ?? null,
+                'rig_info' => $farm['rig_info'] ?? null,
                 'password' => $farm['password'] ?? null
             ];
         }

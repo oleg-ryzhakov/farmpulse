@@ -31,14 +31,24 @@ if (!$farmId || !isset($config['farms'][$farmId])) {
 
 switch ($method) {
     case 'GET':
+        $f = $config['farms'][$farmId];
         echo json_encode([
             "status" => "OK",
             "farm" => [
                 'id' => $farmId,
-                'name' => $config['farms'][$farmId]['name'] ?? ('Farm ' . $farmId),
-                'status' => $config['farms'][$farmId]['status'] ?? 'offline',
-                'last_seen_at' => $config['farms'][$farmId]['last_seen_at'] ?? null,
-                'password' => $config['farms'][$farmId]['password'] ?? null
+                'name' => $f['name'] ?? ('Farm ' . $farmId),
+                'status' => $f['status'] ?? 'offline',
+                'last_seen_at' => $f['last_seen_at'] ?? null,
+                'password' => $f['password'] ?? null,
+                'gpu_count' => $f['gpu_count'] ?? 0,
+                'gpu_temps' => $f['gpu_temps'] ?? [],
+                'total_khs' => $f['total_khs'] ?? null,
+                'total_power_w' => $f['total_power_w'] ?? null,
+                'hashrates' => $f['hashrates'] ?? null,
+                'last_stats_at' => $f['last_stats_at'] ?? null,
+                'last_stats' => $f['last_stats'] ?? null,
+                'rig_info' => $f['rig_info'] ?? null,
+                'hello_params' => $f['hello_params'] ?? null,
             ]
         ]);
         break;

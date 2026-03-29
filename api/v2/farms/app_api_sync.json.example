@@ -1,5 +1,5 @@
 {
     "enabled": true,
-    "base_url": "https://farmpulse.its-good.ru/app-api",
+    "base_url": "http://hive-management/app-api",
     "api_key": "ТОТ_ЖЕ_КЛЮЧ_ЧТО_FARMPULSE_APP_API_KEY_НА_СЕРВЕРЕ"
 }
