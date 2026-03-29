@@ -57,6 +57,119 @@ function hive_worker_collect_hashrates(array $params): array
 }
 
 /**
+ * Разбор miner / coin / algo из params (Hive last_stat / sidecar).
+ *
+ * @param array<string,mixed> $p
+ * @return array{miner: ?string, coin: ?string, algo: ?string}
+ */
+function hive_worker_extract_miner_summary(array $p): array
+{
+    $miner = null;
+    foreach (['miner', 'miner2', 'miner3', 'miner4'] as $k) {
+        if (!empty($p[$k]) && is_string($p[$k])) {
+            $miner = trim($p[$k]);
+            break;
+        }
+    }
+
+    $coin = null;
+    $algo = null;
+
+    foreach (['miner_stats', 'miner_stats2', 'miner_stats3'] as $mk) {
+        if (!isset($p[$mk])) {
+            continue;
+        }
+        $ms = $p[$mk];
+        if (is_string($ms)) {
+            $decoded = json_decode($ms, true);
+            $ms = is_array($decoded) ? $decoded : null;
+        }
+        if (!is_array($ms)) {
+            continue;
+        }
+        if ($coin === null) {
+            foreach (['coin', 'mined_coin', 'symbol', 'currency'] as $ck) {
+                if (!empty($ms[$ck]) && is_string($ms[$ck])) {
+                    $coin = trim($ms[$ck]);
+                    break;
+                }
+            }
+        }
+        if ($algo === null) {
+            foreach (['algo', 'algorithm', 'algo_name'] as $ak) {
+                if (!empty($ms[$ak]) && is_string($ms[$ak])) {
+                    $algo = trim($ms[$ak]);
+                    break;
+                }
+            }
+        }
+        if ($coin !== null && $algo !== null) {
+            break;
+        }
+    }
+
+    return ['miner' => $miner, 'coin' => $coin, 'algo' => $algo];
+}
+
+/**
+ * @param array<string,mixed> $rpcParams
+ */
+function hive_worker_heat_warning_from_params(array $rpcParams): bool
+{
+    if (!isset($rpcParams['temp']) || !is_array($rpcParams['temp'])) {
+        return false;
+    }
+    $slice = array_slice(array_values($rpcParams['temp']), 1);
+    foreach ($slice as $t) {
+        if (is_numeric($t) && (float) $t >= 80.0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Денормализованные поля для списка ферм и карточки (без тяжёлого разбора на фронте).
+ *
+ * @param array<string,mixed> $farm
+ * @param array<string,mixed> $rpcParams
+ */
+function hive_worker_merge_stats_derived(array &$farm, array $rpcParams): void
+{
+    $sum = hive_worker_extract_miner_summary($rpcParams);
+    $farm['summary_miner'] = $sum['miner'];
+    $farm['summary_coin'] = $sum['coin'];
+    $farm['summary_algo'] = $sum['algo'];
+
+    $farm['heat_warning'] = hive_worker_heat_warning_from_params($rpcParams);
+
+    if (isset($rpcParams['cpuavg']) && is_array($rpcParams['cpuavg'])) {
+        $la = array_slice(array_map('strval', $rpcParams['cpuavg']), 0, 3);
+        $la = array_filter($la, static function ($x) {
+            return $x !== '';
+        });
+        if ($la !== []) {
+            $farm['summary_loadavg'] = implode(' / ', $la);
+        }
+    }
+
+    if (isset($rpcParams['sys_uptime_sec']) && is_numeric($rpcParams['sys_uptime_sec'])) {
+        $farm['summary_uptime_sec'] = (int) $rpcParams['sys_uptime_sec'];
+    }
+
+    if (isset($rpcParams['net_ips']) && is_array($rpcParams['net_ips'])) {
+        $ips = [];
+        foreach ($rpcParams['net_ips'] as $ip) {
+            if (is_string($ip) && $ip !== '') {
+                $ips[] = trim($ip);
+            }
+        }
+        $farm['summary_net_ips'] = array_values(array_unique($ips));
+    }
+}
+
+/**
  * @param array<string,mixed> $farm ссылка на $config['farms'][$id]
  * @param array<string,mixed> $rpcParams содержимое JSON params из stats
  */
@@ -92,6 +205,8 @@ function hive_worker_merge_stats_into_farm(array &$farm, array $rpcParams): void
     if ($pw !== null) {
         $farm['total_power_w'] = $pw;
     }
+
+    hive_worker_merge_stats_derived($farm, $rpcParams);
 }
 
 /**

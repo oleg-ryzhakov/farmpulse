@@ -17,6 +17,11 @@ function humanizeInterval(ms) {
 let countdownTimer = null;
 let nextRefreshDeadline = null;
 
+/** @type {'all'|'online'|'offline'} */
+let farmListFilter = (localStorage.getItem('farmListFilter') === 'online' || localStorage.getItem('farmListFilter') === 'offline')
+    ? localStorage.getItem('farmListFilter')
+    : 'all';
+
 function startCountdown() {
     if (countdownTimer) clearInterval(countdownTimer);
     nextRefreshDeadline = Date.now() + refreshIntervalMs;
@@ -53,6 +58,44 @@ function parseLastSeen(s) {
     return new Date(Date.UTC(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, ss || 0));
 }
 
+function formatAgoUtc(s) {
+    const dt = parseLastSeen(s);
+    if (!dt) return '—';
+    let sec = Math.floor((Date.now() - dt.getTime()) / 1000);
+    if (sec < 0) sec = 0;
+    if (sec < 60) return sec + 's';
+    if (sec < 3600) return Math.floor(sec / 60) + 'm';
+    if (sec < 86400) return Math.floor(sec / 3600) + 'h';
+    return Math.floor(sec / 86400) + 'd';
+}
+
+function formatUptimeSec(sec) {
+    if (sec == null || sec === '' || Number(sec) < 0) return '—';
+    const s = Number(sec);
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (d > 0) return d + 'd ' + h + 'h';
+    if (h > 0) return h + 'h ' + m + 'm';
+    return m + 'm';
+}
+
+function minerSummaryLine(f) {
+    const parts = [];
+    if (f.summary_miner) parts.push(f.summary_miner);
+    if (f.summary_coin) parts.push(f.summary_coin);
+    if (f.summary_algo && !f.summary_coin) parts.push(f.summary_algo);
+    return parts.length ? parts.join(' · ') : '—';
+}
+
+function applyFarmFilterButtons() {
+    const g = document.getElementById('farmFilterGroup');
+    if (!g) return;
+    g.querySelectorAll('[data-farm-filter]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-farm-filter') === farmListFilter);
+    });
+}
+
 function loadFarms() {
     return fetch(API + '/v2/farms/farms.php')
         .then(res => res.json())
@@ -81,9 +124,12 @@ function loadFarms() {
 
             const tableBody = document.getElementById('workers-table-body');
             tableBody.innerHTML = '';
+            applyFarmFilterButtons();
             farms.forEach(farm => {
                 const dt = parseLastSeen(farm.last_seen_at);
                 const isOnline = dt ? ((now - dt.getTime()) <= ONLINE_THRESHOLD_MS) : false;
+                if (farmListFilter === 'online' && !isOnline) return;
+                if (farmListFilter === 'offline' && isOnline) return;
                 const row = document.createElement('tr');
                 const gpuDots = (farm.gpu_temps || []).map((t, idx) => {
                     const temp = Number(t);
@@ -93,14 +139,21 @@ function loadFarms() {
                 }).join('');
                 const khs = farm.total_khs != null && farm.total_khs !== '' ? Number(farm.total_khs).toFixed(1) : '—';
                 const pwr = farm.total_power_w != null && farm.total_power_w !== '' ? Math.round(Number(farm.total_power_w)) : '—';
+                const heat = farm.heat_warning === true;
+                const seenAgo = formatAgoUtc(farm.last_seen_at);
+                const seenTitle = (farm.last_seen_at || '').replace(/"/g, '&quot;');
                 row.innerHTML = `
                     <td>${farm.id}</td>
                     <td><a class="farm-link" href="farm.php?id=${encodeURIComponent(farm.id)}">${farm.name}</a></td>
                     <td><span class="badge bg-${isOnline ? 'success' : 'danger'}">${isOnline ? 'online' : 'offline'}</span></td>
+                    <td class="text-center">${heat ? '<span class="text-warning" title="GPU ≥80°C">⚠</span>' : ''}</td>
                     <td>${gpuDots || '<span class="text-muted">-</span>'}</td>
                     <td class="text-nowrap">${khs}</td>
                     <td class="text-nowrap">${pwr}</td>
-                    <td>${farm.last_seen_at ?? '-'}</td>
+                    <td class="text-nowrap small">${farm.summary_loadavg ?? '—'}</td>
+                    <td class="small text-truncate" style="max-width:9rem" title="${minerSummaryLine(farm).replace(/"/g, '&quot;')}">${minerSummaryLine(farm)}</td>
+                    <td class="text-nowrap small">${formatUptimeSec(farm.summary_uptime_sec)}</td>
+                    <td class="text-nowrap small"><span title="${seenTitle}">${seenAgo}</span></td>
                     <td>
                         <div class="dropdown">
                           <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">Choose action</button>
@@ -395,6 +448,17 @@ function removeEwelinkAccount() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    const ff = document.getElementById('farmFilterGroup');
+    if (ff) {
+        ff.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-farm-filter]');
+            if (!btn) return;
+            e.preventDefault();
+            farmListFilter = /** @type {'all'|'online'|'offline'} */ (btn.getAttribute('data-farm-filter') || 'all');
+            localStorage.setItem('farmListFilter', farmListFilter);
+            loadFarms();
+        });
+    }
     document.getElementById('refreshCountdownLabel').textContent = humanizeInterval(refreshIntervalMs);
     document.querySelectorAll('#refreshDropdown + .dropdown-menu .dropdown-item').forEach(a => {
         a.addEventListener('click', (e) => {

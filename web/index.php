@@ -72,9 +72,14 @@ require __DIR__ . '/includes/config.php';
             </div>
             <div class="card-body tab-content tab-outline">
               <div class="tab-pane fade show active" id="pane-farms" role="tabpanel" aria-labelledby="tab-farms">
-                <div class="mb-3 d-flex align-items-center gap-2">
+                <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
                     <label for="farmSelect" class="form-label mb-0">Farm:</label>
                     <select id="farmSelect" class="form-select form-select-sm bg-dark text-light" style="width:auto"></select>
+                    <div class="btn-group btn-group-sm ms-2" role="group" id="farmFilterGroup" aria-label="Filter">
+                        <button type="button" class="btn btn-outline-secondary" data-farm-filter="all">All</button>
+                        <button type="button" class="btn btn-outline-secondary" data-farm-filter="online">Online</button>
+                        <button type="button" class="btn btn-outline-secondary" data-farm-filter="offline">Offline</button>
+                    </div>
                     <button type="button" class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#addFarmModal">Add Farm</button>
                 </div>
                 <div id="workers-list" class="table-responsive">
@@ -84,10 +89,14 @@ require __DIR__ . '/includes/config.php';
                                 <th>ID</th>
                                 <th>Farm Name</th>
                                 <th>Status</th>
+                                <th title="GPU ≥80°C">⚠</th>
                                 <th>GPUs</th>
                                 <th>kH/s</th>
                                 <th>W</th>
-                                <th>Last seen</th>
+                                <th>Load</th>
+                                <th>Miner</th>
+                                <th>Uptime</th>
+                                <th>Seen</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>

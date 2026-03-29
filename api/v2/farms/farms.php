@@ -36,7 +36,14 @@ switch ($method) {
                 'total_power_w' => $farm['total_power_w'] ?? null,
                 'last_stats_at' => $farm['last_stats_at'] ?? null,
                 'rig_info' => $farm['rig_info'] ?? null,
-                'password' => $farm['password'] ?? null
+                'password' => $farm['password'] ?? null,
+                'summary_miner' => $farm['summary_miner'] ?? null,
+                'summary_coin' => $farm['summary_coin'] ?? null,
+                'summary_algo' => $farm['summary_algo'] ?? null,
+                'summary_loadavg' => $farm['summary_loadavg'] ?? null,
+                'summary_uptime_sec' => $farm['summary_uptime_sec'] ?? null,
+                'summary_net_ips' => $farm['summary_net_ips'] ?? null,
+                'heat_warning' => $farm['heat_warning'] ?? false,
             ];
         }
         echo json_encode([

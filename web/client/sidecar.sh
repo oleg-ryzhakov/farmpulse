@@ -404,6 +404,27 @@ try:
 except Exception:
     pass
 
+sys_uptime_sec = 0
+try:
+    with open("/proc/uptime", encoding="utf-8") as _up:
+        sys_uptime_sec = int(float(_up.read().split()[0]))
+except (OSError, ValueError, IndexError):
+    pass
+
+net_ips = []
+try:
+    r = subprocess.run(
+        ["hostname", "-I"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        universal_newlines=True,
+        timeout=5,
+    )
+    if r.returncode == 0 and r.stdout:
+        net_ips = [x for x in r.stdout.strip().split() if x]
+except (FileNotFoundError, subprocess.TimeoutExpired):
+    pass
+
 params = {
     "v": 2,
     "rig_id": rig_id,
@@ -415,6 +436,8 @@ params = {
     "mem": mem,
     "cputemp": cputemp,
     "cpuavg": cpuavg,
+    "sys_uptime_sec": sys_uptime_sec,
+    "net_ips": net_ips,
 }
 
 if len(jtemp) == len(temps) - 1 and any(jtemp):

@@ -49,6 +49,13 @@ switch ($method) {
                 'last_stats' => $f['last_stats'] ?? null,
                 'rig_info' => $f['rig_info'] ?? null,
                 'hello_params' => $f['hello_params'] ?? null,
+                'summary_miner' => $f['summary_miner'] ?? null,
+                'summary_coin' => $f['summary_coin'] ?? null,
+                'summary_algo' => $f['summary_algo'] ?? null,
+                'summary_loadavg' => $f['summary_loadavg'] ?? null,
+                'summary_uptime_sec' => $f['summary_uptime_sec'] ?? null,
+                'summary_net_ips' => $f['summary_net_ips'] ?? null,
+                'heat_warning' => $f['heat_warning'] ?? false,
             ]
         ]);
         break;

@@ -81,9 +81,46 @@ $farmId = isset($_GET['id']) ? (string)$_GET['id'] : '';
         </div>
       </div>
     </div>
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card p-3">
+          <div class="text-muted">System uptime</div>
+          <div class="fs-5" id="sysUptime">-</div>
+        </div>
+      </div>
+      <div class="col-md-9">
+        <div class="card p-3">
+          <div class="text-muted">IP (stats / hello)</div>
+          <div class="fs-6" id="netIps">-</div>
+        </div>
+      </div>
+    </div>
+    <div class="card mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>GPU (последний stats)</span>
+        <span class="small text-muted" id="heatBadge"></span>
+      </div>
+      <div class="card-body p-0 table-responsive">
+        <table class="table table-dark table-sm table-striped mb-0">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Temp</th>
+              <th>Fan</th>
+              <th>W</th>
+              <th title="По GPU из miner_stats — в разработке">kH/s</th>
+            </tr>
+          </thead>
+          <tbody id="gpuTableBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
     <div class="card mb-4">
       <div class="card-header">Rig (hello)</div>
-      <div class="card-body small text-muted" id="rigInfoBox">—</div>
+      <div class="card-body small">
+        <div class="text-light" id="rigSummaryLines">—</div>
+      </div>
     </div>
     <div class="card mb-4">
       <div class="card-header d-flex justify-content-between align-items-center">
