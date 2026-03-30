@@ -5,6 +5,8 @@
     const farmId = new URLSearchParams(location.search).get('id') || window.__FARM_ID__ || '';
     /** @type {Record<string, unknown>|null} */
     let lastFarmPayload = null;
+    /** @type {'on'|'off'|null} */
+    let ewelinkSocketState = null;
 
     function escapeHtml(s) {
         return String(s)
@@ -362,12 +364,101 @@
         farmEwelinkRefreshStatus();
     }
 
+    function farmEwelinkToolbarSetLoading() {
+        const line = document.getElementById('farmEwelinkBarStatusLine');
+        const btn = document.getElementById('farmEwelinkBarToggle');
+        if (line) {
+            line.textContent = 'Запрос статуса…';
+            line.classList.remove('ewelink-state-on', 'ewelink-state-off', 'ewelink-state-unknown', 'ewelink-state-offline');
+            line.classList.add('ewelink-state-unknown');
+        }
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '…';
+            btn.className = 'btn btn-sm btn-secondary';
+        }
+    }
+
+    function applyEwelinkToolbarStatus(data, errMsg) {
+        const line = document.getElementById('farmEwelinkBarStatusLine');
+        const btn = document.getElementById('farmEwelinkBarToggle');
+        if (!line || !btn) {
+            return;
+        }
+        line.classList.remove('ewelink-state-on', 'ewelink-state-off', 'ewelink-state-unknown', 'ewelink-state-offline');
+        line.removeAttribute('title');
+        btn.removeAttribute('title');
+
+        if (errMsg) {
+            ewelinkSocketState = null;
+            line.textContent = 'Статус: ошибка';
+            line.classList.add('ewelink-state-offline');
+            line.title = errMsg;
+            btn.textContent = 'Повторить';
+            btn.className = 'btn btn-sm btn-outline-warning';
+            btn.disabled = false;
+            return;
+        }
+
+        const online = data.online !== false;
+        const sw = data.switch === 'on' || data.switch === 'off' ? data.switch : null;
+        ewelinkSocketState = sw;
+
+        if (!online) {
+            line.textContent = 'Розетка offline в eWeLink';
+            line.classList.add('ewelink-state-offline');
+            btn.textContent = 'Нет связи';
+            btn.className = 'btn btn-sm btn-outline-secondary';
+            btn.disabled = true;
+            return;
+        }
+
+        if (sw === 'on') {
+            line.textContent = 'Сейчас: включена';
+            line.classList.add('ewelink-state-on');
+            btn.textContent = 'Выключить';
+            btn.className = 'btn btn-sm btn-danger';
+            btn.disabled = false;
+            return;
+        }
+        if (sw === 'off') {
+            line.textContent = 'Сейчас: выключена';
+            line.classList.add('ewelink-state-off');
+            btn.textContent = 'Включить';
+            btn.className = 'btn btn-sm btn-success';
+            btn.disabled = false;
+            return;
+        }
+
+        line.textContent = 'Состояние не определено — нажмите ⟳';
+        line.classList.add('ewelink-state-unknown');
+        btn.textContent = 'Обновить статус';
+        btn.className = 'btn btn-sm btn-outline-light';
+        btn.disabled = false;
+        btn.title = 'Если модель не отдаёт switch в API, статус может остаться неизвестным';
+    }
+
+    async function farmEwelinkToggle() {
+        if (ewelinkSocketState === 'on') {
+            await farmEwelinkSwitch(false);
+        } else if (ewelinkSocketState === 'off') {
+            await farmEwelinkSwitch(true);
+        } else {
+            await farmEwelinkRefreshStatus();
+        }
+    }
+
     async function farmEwelinkSwitch(on) {
         const farm = lastFarmPayload;
         if (!farm || !farm.ewelink_device_id) {
             return;
         }
         const itemType = Number(farm.ewelink_device_item_type) === 2 ? 2 : 1;
+        const tgl = document.getElementById('farmEwelinkBarToggle');
+        if (tgl) {
+            tgl.disabled = true;
+            tgl.textContent = '…';
+        }
         const res = await fetch(`${API}/v2/integrations/ewelink.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -380,6 +471,10 @@
         });
         const data = await res.json().catch(function () { return {}; });
         if (!res.ok) {
+            if (tgl) {
+                tgl.disabled = false;
+            }
+            applyEwelinkToolbarStatus({}, String(data.message || res.status));
             alert('eWeLink: ' + (data.message || res.status));
             return;
         }
@@ -388,12 +483,10 @@
 
     async function farmEwelinkRefreshStatus() {
         const farm = lastFarmPayload;
-        const badge = document.getElementById('farmEwelinkBarStatus');
-        if (!farm || !farm.ewelink_device_id || !badge) {
+        if (!farm || !farm.ewelink_device_id) {
             return;
         }
-        badge.textContent = '…';
-        badge.className = 'badge bg-secondary small';
+        farmEwelinkToolbarSetLoading();
         const res = await fetch(`${API}/v2/integrations/ewelink.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -404,25 +497,10 @@
         });
         const data = await res.json().catch(function () { return {}; });
         if (!res.ok) {
-            badge.textContent = '?';
-            badge.title = data.message || '';
+            applyEwelinkToolbarStatus({}, String(data.message || ('HTTP ' + res.status)));
             return;
         }
-        badge.title = '';
-        const sw = data.switch;
-        if (sw === 'on') {
-            badge.className = 'badge bg-success small';
-            badge.textContent = 'Вкл';
-        } else if (sw === 'off') {
-            badge.className = 'badge bg-danger small';
-            badge.textContent = 'Выкл';
-        } else if (data.online === false) {
-            badge.className = 'badge bg-warning text-dark small';
-            badge.textContent = 'offline';
-        } else {
-            badge.className = 'badge bg-secondary small';
-            badge.textContent = '—';
-        }
+        applyEwelinkToolbarStatus(data, '');
     }
 
     function ewelinkFarmClearSelect(sel) {
@@ -656,6 +734,7 @@
     window.saveEwelinkFarmDevice = saveEwelinkFarmDevice;
     window.farmEwelinkSwitch = farmEwelinkSwitch;
     window.farmEwelinkRefreshStatus = farmEwelinkRefreshStatus;
+    window.farmEwelinkToggle = farmEwelinkToggle;
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!farmId) { alert('No farm id'); location.href = 'index.php'; return; }

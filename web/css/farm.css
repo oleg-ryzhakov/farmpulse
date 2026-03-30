@@ -28,3 +28,9 @@ a.farm-link:hover { text-decoration:underline; }
   border-radius: 3px;
   transition: width 0.2s ease;
 }
+
+/* eWeLink: явный статус розетки в шапке фермы */
+#farmEwelinkBarStatusLine.ewelink-state-on { color: #75b798 !important; }
+#farmEwelinkBarStatusLine.ewelink-state-off { color: #f1aeb5 !important; }
+#farmEwelinkBarStatusLine.ewelink-state-unknown { color: #adb5bd !important; }
+#farmEwelinkBarStatusLine.ewelink-state-offline { color: #ffda6a !important; }

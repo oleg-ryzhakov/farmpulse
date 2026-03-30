@@ -27,11 +27,8 @@ $farmId = isset($_GET['id']) ? (string)$_GET['id'] : '';
         <button class="btn btn-secondary btn-sm" onclick="queueReboot()">🔄 Reboot</button>
         <div id="farmEwelinkBar" class="d-none d-flex align-items-center gap-2 flex-wrap border border-secondary rounded px-2 py-1" style="background: rgba(33,37,41,.4);">
           <span class="small text-light" id="farmEwelinkBarLabel">eWeLink</span>
-          <span class="badge bg-secondary small" id="farmEwelinkBarStatus">—</span>
-          <div class="btn-group btn-group-sm" role="group" aria-label="Розетка">
-            <button type="button" class="btn btn-outline-success" id="farmEwelinkBarOn" onclick="farmEwelinkSwitch(true)">Вкл</button>
-            <button type="button" class="btn btn-outline-danger" id="farmEwelinkBarOff" onclick="farmEwelinkSwitch(false)">Выкл</button>
-          </div>
+          <span id="farmEwelinkBarStatusLine" class="small fw-semibold user-select-none">—</span>
+          <button type="button" class="btn btn-sm" id="farmEwelinkBarToggle" onclick="farmEwelinkToggle()" disabled>—</button>
           <button type="button" class="btn btn-sm btn-outline-light py-0" id="farmEwelinkBarStatusBtn" onclick="farmEwelinkRefreshStatus()" title="Обновить статус розетки">⟳</button>
         </div>
         <button class="btn btn-outline-light btn-sm" onclick="refreshFarm()">⟳ Refresh</button>
