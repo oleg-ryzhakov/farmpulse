@@ -2,7 +2,7 @@
 
 На прод нужны **`web/`** (включая **`web/client/`** — установщик для ригов: `wget …/client/install.sh`) и **`api/`**. Для мобильного API в памяти — ещё **`api-application/server/`** (Python). Папки `docs/`, примеры nginx — не обязательны для работы сайта.
 
-**eWeLink (привязка аккаунта):** Node-скрипт лежит в **`api/ewelink-node/`** (входит в деплой вместе с `api/`). После `git pull` на сервере один раз: `cd api/ewelink-node && npm ci`, на VPS нужны Node.js, переменные `EWELINK_APP_ID` / `EWELINK_APP_SECRET` и ключ `FARMPULSE_EWELINK_KEY` (см. комментарии в `api/v2/integrations/ewelink.php`).
+**eWeLink (привязка аккаунта):** Node-скрипты в **`api/ewelink-node/`** (`npm ci`). Для приложения типа **OAuth2.0** в консоли CoolKit укажите **Redirect URL** точно как в интерфейсе вкладки eWeLink (обычно `https://ВАШ-ДОМЕН/ewelink-oauth-callback.php`). Переменные `EWELINK_APP_ID` / `EWELINK_APP_SECRET` и ключ шифрования — см. `api/v2/integrations/ewelink.php`.
 
 Готовый **исправленный** конфиг nginx для `sites-available` (один `server` на 443, без вложенности): [`sites-available-farmpulse.conf`](sites-available-farmpulse.conf) — можно скопировать на сервер целиком в `/etc/nginx/sites-available/farmpulse` (после бэкапа старого файла).
 

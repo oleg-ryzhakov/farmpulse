@@ -8,6 +8,15 @@ function ewelink_data_dir(): string
     return dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'data';
 }
 
+function ewelink_ensure_data_dir(): bool
+{
+    $d = ewelink_data_dir();
+    if (is_dir($d)) {
+        return true;
+    }
+    return @mkdir($d, 0700, true) || is_dir($d);
+}
+
 function ewelink_state_path(): string
 {
     return ewelink_data_dir() . DIRECTORY_SEPARATOR . 'ewelink-state.json';
@@ -82,6 +91,28 @@ function ewelink_key_file_path(): string
 function ewelink_key_file_exists(): bool
 {
     return is_readable(ewelink_key_file_path());
+}
+
+function ewelink_oauth_pending_path(): string
+{
+    return ewelink_data_dir() . DIRECTORY_SEPARATOR . 'ewelink-oauth-pending.json';
+}
+
+/**
+ * URL callback OAuth — должен совпадать с Redirect URL в консоли CoolKit (часто /ewelink-oauth-callback.php).
+ * Переопределение: EWELINK_OAUTH_REDIRECT_URL (полный URL без хвоста).
+ */
+function ewelink_oauth_callback_url(): string
+{
+    $override = ewelink_getenv_str('EWELINK_OAUTH_REDIRECT_URL');
+    if ($override !== '') {
+        return rtrim($override, '/');
+    }
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    $scheme = $https ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    return $scheme . '://' . $host . '/ewelink-oauth-callback.php';
 }
 
 function ewelink_credentials_path(): string

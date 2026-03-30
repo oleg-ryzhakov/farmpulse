@@ -2,7 +2,7 @@
 /**
  * Интеграция eWeLink: CoolKit (через веб или env), мастер-ключ (веб один раз → data/ewelink.key), аккаунт eWeLink.
  *
- * Node: api/ewelink-node/ (npm ci). Логин: ewelink-api-next (Node CLI).
+ * Node: api/ewelink-node/ (npm ci). Вход: OAuth2 (рекомендуется для типа OAuth2.0) или пароль (если разрешён /v2/user/login).
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -15,11 +15,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/ewelink-storage.php';
+require_once __DIR__ . '/ewelink-node-runner.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $dataDir = ewelink_data_dir();
 $statePath = ewelink_state_path();
-$scriptPath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'ewelink-node' . DIRECTORY_SEPARATOR . 'login.mjs';
 
 function ewelink_read_state(): ?array
 {
@@ -43,15 +43,6 @@ function ewelink_write_state(array $state): bool
     return file_put_contents($statePath, json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) !== false;
 }
 
-function ewelink_ensure_data_dir(): bool
-{
-    global $dataDir;
-    if (is_dir($dataDir)) {
-        return true;
-    }
-    return @mkdir($dataDir, 0700, true) || is_dir($dataDir);
-}
-
 function ewelink_status_payload(): array
 {
     $state = ewelink_read_state();
@@ -72,7 +63,6 @@ function ewelink_status_payload(): array
     }
 
     $payload = [
-        'status' => 'OK',
         'connected' => (bool) ($state && !empty($state['meta'])),
         'encryption_key_configured' => $encryption_key_configured,
         'encryption_key_from_env' => $encryption_key_from_env,
@@ -80,101 +70,64 @@ function ewelink_status_payload(): array
         'coolkit_from_env' => $coolkit_from_env,
         'app_id' => $app_id,
         'app_secret_configured' => $coolkit_from_env || $credMeta['has_app_secret'],
+        'oauth_callback_url' => ewelink_oauth_callback_url(),
     ];
     if ($payload['connected']) {
         $payload['account_masked'] = $state['meta']['account_masked'] ?? '';
         $payload['region'] = $state['meta']['region'] ?? null;
         $payload['connected_at'] = $state['meta']['connected_at'] ?? null;
+        $payload['auth_via'] = $state['meta']['auth_via'] ?? 'password';
     }
     return $payload;
 }
 
-function ewelink_child_env(string $appId, string $appSecret): array
-{
-    $env = [];
-    $path = ewelink_getenv_str('PATH');
-    if ($path === '') {
-        $path = ewelink_getenv_str('Path');
-    }
-    if ($path === '') {
-        $path = $_SERVER['PATH'] ?? $_SERVER['Path'] ?? '';
-    }
-    if ($path !== '') {
-        $env['PATH'] = $path;
-    }
-    foreach (['SystemRoot', 'WINDIR', 'COMSPEC', 'PATHEXT', 'TEMP', 'TMP', 'USERPROFILE', 'HOME'] as $k) {
-        $v = ewelink_getenv_str($k);
-        if ($v === '' && isset($_SERVER[$k])) {
-            $v = (string) $_SERVER[$k];
-        }
-        if ($v !== '') {
-            $env[$k] = $v;
-        }
-    }
-    $env['EWELINK_APP_ID'] = $appId;
-    $env['EWELINK_APP_SECRET'] = $appSecret;
-    return $env;
-}
-
 function ewelink_run_node_login(array $input): array
 {
-    global $scriptPath;
-    if (!is_readable($scriptPath)) {
-        return ['ok' => false, 'error' => 'script', 'msg' => 'login.mjs not found'];
+    return ewelink_run_node_script('login.mjs', [], json_encode($input, JSON_UNESCAPED_UNICODE));
+}
+
+function ewelink_handle_oauth_start(): void
+{
+    if (!ewelink_resolve_coolkit_credentials()) {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'Сохраните APP ID и APP SECRET CoolKit в блоке выше.']);
+        return;
     }
-
-    $creds = ewelink_resolve_coolkit_credentials();
-    if (!$creds) {
-        return ['ok' => false, 'error' => 'config', 'msg' => 'Задайте EWELINK_APP_ID/SECRET в окружении или в настройках вкладки eWeLink'];
+    if (ewelink_key_material() === '') {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'Сначала задайте секретный ключ шифрования (мастер-ключ).']);
+        return;
     }
-    [$appId, $appSecret] = $creds;
-
-    $node = ewelink_getenv_str('NODE_BINARY') ?: 'node';
-    $cmd = $node . ' ' . escapeshellarg($scriptPath);
-
-    $descriptorspec = [
-        0 => ['pipe', 'r'],
-        1 => ['pipe', 'w'],
-        2 => ['pipe', 'w'],
+    $redirectUrl = ewelink_oauth_callback_url();
+    $state = bin2hex(random_bytes(16));
+    if (!ewelink_ensure_data_dir()) {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => 'Не удалось создать каталог data']);
+        return;
+    }
+    $pending = [
+        'state' => $state,
+        'redirect_url' => $redirectUrl,
+        'ts' => time(),
     ];
-
-    $proc = proc_open(
-        $cmd,
-        $descriptorspec,
-        $pipes,
-        dirname($scriptPath),
-        ewelink_child_env($appId, $appSecret),
-        []
-    );
-
-    if (!is_resource($proc)) {
-        return ['ok' => false, 'error' => 'proc', 'msg' => 'Could not start node'];
+    if (file_put_contents(ewelink_oauth_pending_path(), json_encode($pending, JSON_UNESCAPED_UNICODE)) === false) {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => 'Не удалось сохранить состояние OAuth']);
+        return;
     }
-
-    $payload = json_encode($input, JSON_UNESCAPED_UNICODE);
-    fwrite($pipes[0], $payload);
-    fclose($pipes[0]);
-
-    $stdout = stream_get_contents($pipes[1]);
-    $stderr = stream_get_contents($pipes[2]);
-    fclose($pipes[1]);
-    fclose($pipes[2]);
-    $code = proc_close($proc);
-
-    if ($code !== 0) {
-        $err = json_decode(trim($stderr) ?: '{}', true);
-        if (is_array($err) && isset($err['ok']) && $err['ok'] === false) {
-            return $err;
-        }
-        return [
-            'ok' => false,
-            'error' => 'node',
-            'msg' => $stderr ?: ('exit ' . $code),
-        ];
+    $stdin = json_encode(['redirectUrl' => $redirectUrl, 'state' => $state], JSON_UNESCAPED_UNICODE);
+    $r = ewelink_run_node_script('oauth.mjs', ['login-url'], $stdin);
+    if (empty($r['ok']) || empty($r['url'])) {
+        http_response_code(401);
+        $msg = $r['msg'] ?? 'OAuth URL failed';
+        echo json_encode(['status' => 'error', 'message' => is_string($msg) ? $msg : json_encode($r)]);
+        return;
     }
-
-    $out = json_decode(trim($stdout) ?: '{}', true);
-    return is_array($out) ? $out : ['ok' => false, 'error' => 'parse', 'msg' => 'Invalid node output'];
+    echo json_encode([
+        'status' => 'OK',
+        'url' => $r['url'],
+        'oauth_callback' => $redirectUrl,
+    ]);
 }
 
 function ewelink_handle_save_settings(array $body): void
@@ -287,8 +240,11 @@ function ewelink_handle_save_settings(array $body): void
 }
 
 if ($method === 'GET') {
+    if (($_GET['action'] ?? '') === 'oauth_start') {
+        ewelink_handle_oauth_start();
+        exit;
+    }
     echo json_encode(array_merge(ewelink_status_payload(), ['status' => 'OK']));
-
     exit;
 }
 
@@ -351,10 +307,15 @@ if ($method === 'POST') {
     if (empty($result['ok'])) {
         http_response_code(401);
         $msg = $result['msg'] ?? ($result['error'] ?? 'Login failed');
+        $msgStr = is_string($msg) ? $msg : json_encode($msg);
+        $hint = (stripos($msgStr, 'path of request is not allowed') !== false)
+            ? 'Для приложения типа OAuth2.0 вход по паролю недоступен — нажмите «Войти через eWeLink (OAuth)».'
+            : null;
         echo json_encode([
             'status' => 'error',
-            'message' => is_string($msg) ? $msg : json_encode($msg),
+            'message' => $msgStr,
             'code' => $result['error'] ?? null,
+            'hint' => $hint,
         ]);
         exit;
     }
@@ -378,6 +339,7 @@ if ($method === 'POST') {
         'account_masked' => ewelink_mask_account($account),
         'region' => $result['region'] ?? null,
         'connected_at' => gmdate('Y-m-d H:i:s'),
+        'auth_via' => 'password',
     ];
 
     $state = [

@@ -427,6 +427,10 @@ function applyEwelinkCoolkitForm(data) {
     } else if (appSec) {
         appSec.placeholder = 'APP SECRET из консоли';
     }
+    const oauthUrlEl = document.getElementById('ewelinkOAuthCallbackUrl');
+    if (oauthUrlEl && data.oauth_callback_url) {
+        oauthUrlEl.textContent = data.oauth_callback_url;
+    }
 }
 
 function loadEwelinkStatus() {
@@ -490,6 +494,18 @@ function saveEwelinkCoolkitSettings() {
         .catch(err => alert('Ошибка: ' + err.message));
 }
 
+function startEwelinkOAuth() {
+    fetch(API + '/v2/integrations/ewelink.php?action=oauth_start')
+        .then(r => r.json())
+        .then(data => {
+            if (data.status !== 'OK' || !data.url) {
+                throw new Error(data.message || 'OAuth');
+            }
+            window.location.href = data.url;
+        })
+        .catch(err => alert('Ошибка: ' + err.message));
+}
+
 function saveEwelinkAccount() {
     const account = document.getElementById('ewelinkAccount').value.trim();
     const password = document.getElementById('ewelinkPassword').value;
@@ -506,7 +522,9 @@ function saveEwelinkAccount() {
     .then(async res => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-            throw new Error(data.message || data.msg || ('HTTP ' + res.status));
+            const msg = data.message || data.msg || ('HTTP ' + res.status);
+            const hint = data.hint ? ('\n\n' + data.hint) : '';
+            throw new Error(msg + hint);
         }
         return data;
     })
@@ -550,6 +568,23 @@ document.addEventListener('DOMContentLoaded', () => {
     loadFarms();
     setRefreshInterval(refreshIntervalMs);
     loadEwelinkStatus();
+    try {
+        const p = new URLSearchParams(window.location.search);
+        if (p.get('ewelink_oauth_ok')) {
+            alert('Аккаунт eWeLink подключён через OAuth.');
+            const u = new URL(window.location.href);
+            u.searchParams.delete('ewelink_oauth_ok');
+            history.replaceState({}, '', u.pathname + u.search + (window.location.hash || ''));
+            loadEwelinkStatus();
+        }
+        const oauthErr = p.get('ewelink_oauth_err');
+        if (oauthErr) {
+            alert('OAuth eWeLink: ' + oauthErr);
+            const u = new URL(window.location.href);
+            u.searchParams.delete('ewelink_oauth_err');
+            history.replaceState({}, '', u.pathname + u.search + (window.location.hash || ''));
+        }
+    } catch (_) { /* ignore */ }
     try { loadCoins(); } catch(_){ }
     const coinSel = document.getElementById('fsCoinSel');
     if (coinSel) coinSel.addEventListener('change', onCoinChange);
