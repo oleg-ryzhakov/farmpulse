@@ -46,6 +46,7 @@ switch ($method) {
                 'heat_warning' => $farm['heat_warning'] ?? false,
                 'ewelink_device_id' => $farm['ewelink_device_id'] ?? null,
                 'ewelink_device_name' => $farm['ewelink_device_name'] ?? null,
+                'ewelink_device_item_type' => isset($farm['ewelink_device_item_type']) ? (int) $farm['ewelink_device_item_type'] : null,
             ];
         }
         echo json_encode([

@@ -78,10 +78,16 @@ if ($action === 'reboot') {
     $deviceId = isset($body['ewelink_device_id']) ? trim((string) $body['ewelink_device_id']) : '';
     $deviceName = isset($body['ewelink_device_name']) ? trim((string) $body['ewelink_device_name']) : '';
     if ($deviceId === '') {
-        unset($config['farms'][$farmId]['ewelink_device_id'], $config['farms'][$farmId]['ewelink_device_name']);
+        unset(
+            $config['farms'][$farmId]['ewelink_device_id'],
+            $config['farms'][$farmId]['ewelink_device_name'],
+            $config['farms'][$farmId]['ewelink_device_item_type']
+        );
     } else {
         $config['farms'][$farmId]['ewelink_device_id'] = $deviceId;
         $config['farms'][$farmId]['ewelink_device_name'] = $deviceName;
+        $it = isset($body['ewelink_device_item_type']) ? (int) $body['ewelink_device_item_type'] : 1;
+        $config['farms'][$farmId]['ewelink_device_item_type'] = ($it === 2) ? 2 : 1;
     }
     if (!file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT))) {
         http_response_code(500);

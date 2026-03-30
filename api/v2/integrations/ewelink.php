@@ -160,6 +160,83 @@ function ewelink_handle_devices(): void
     echo json_encode($out);
 }
 
+function ewelink_handle_device_switch(array $body): void
+{
+    $tok = ewelink_read_session_tokens();
+    if (!$tok || ($tok['at'] ?? '') === '') {
+        http_response_code(401);
+        echo json_encode(['status' => 'error', 'message' => 'Сначала подключите eWeLink.']);
+        return;
+    }
+    $deviceId = isset($body['device_id']) ? trim((string) $body['device_id']) : '';
+    if ($deviceId === '') {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'Укажите device_id']);
+        return;
+    }
+    if (!array_key_exists('on', $body)) {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'Укажите on: true или false']);
+        return;
+    }
+    $on = filter_var($body['on'], FILTER_VALIDATE_BOOLEAN);
+    $itemType = isset($body['item_type']) ? (int) $body['item_type'] : 1;
+    if ($itemType !== 1 && $itemType !== 2) {
+        $itemType = 1;
+    }
+    $stdin = json_encode([
+        'at' => $tok['at'],
+        'region' => ($tok['region'] ?? '') !== '' ? $tok['region'] : 'eu',
+        'deviceId' => $deviceId,
+        'itemType' => $itemType,
+        'on' => $on,
+    ], JSON_UNESCAPED_UNICODE);
+    $r = ewelink_run_node_script('device-control.mjs', [], $stdin);
+    if (empty($r['ok'])) {
+        http_response_code(502);
+        $msg = $r['msg'] ?? 'device_switch';
+        echo json_encode(['status' => 'error', 'message' => is_string($msg) ? $msg : json_encode($r)]);
+        return;
+    }
+    echo json_encode([
+        'status' => 'OK',
+        'item_type_used' => $r['itemTypeUsed'] ?? null,
+    ]);
+}
+
+function ewelink_handle_device_status(array $body): void
+{
+    $tok = ewelink_read_session_tokens();
+    if (!$tok || ($tok['at'] ?? '') === '') {
+        http_response_code(401);
+        echo json_encode(['status' => 'error', 'message' => 'Сначала подключите eWeLink.']);
+        return;
+    }
+    $deviceId = isset($body['device_id']) ? trim((string) $body['device_id']) : '';
+    if ($deviceId === '') {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'Укажите device_id']);
+        return;
+    }
+    $stdin = json_encode([
+        'at' => $tok['at'],
+        'region' => ($tok['region'] ?? '') !== '' ? $tok['region'] : 'eu',
+        'deviceId' => $deviceId,
+    ], JSON_UNESCAPED_UNICODE);
+    $r = ewelink_run_node_script('device-status.mjs', [], $stdin);
+    if (empty($r['ok'])) {
+        http_response_code(502);
+        $msg = $r['msg'] ?? 'device_status';
+        echo json_encode(['status' => 'error', 'message' => is_string($msg) ? $msg : json_encode($r)]);
+        return;
+    }
+    echo json_encode([
+        'status' => 'OK',
+        'switch' => $r['switch'] ?? null,
+        'online' => $r['online'] ?? null,
+    ]);
+}
+
 function ewelink_handle_save_settings(array $body): void
 {
     if (ewelink_getenv_str('EWELINK_APP_ID') !== '' && ewelink_getenv_str('EWELINK_APP_SECRET') !== '') {
@@ -295,6 +372,14 @@ if ($method === 'POST') {
 
     if (($body['action'] ?? '') === 'save_settings') {
         ewelink_handle_save_settings($body);
+        exit;
+    }
+    if (($body['action'] ?? '') === 'device_switch') {
+        ewelink_handle_device_switch($body);
+        exit;
+    }
+    if (($body['action'] ?? '') === 'device_status') {
+        ewelink_handle_device_status($body);
         exit;
     }
 

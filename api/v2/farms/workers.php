@@ -58,6 +58,7 @@ switch ($method) {
                 'heat_warning' => $f['heat_warning'] ?? false,
                 'ewelink_device_id' => $f['ewelink_device_id'] ?? null,
                 'ewelink_device_name' => $f['ewelink_device_name'] ?? null,
+                'ewelink_device_item_type' => isset($f['ewelink_device_item_type']) ? (int) $f['ewelink_device_item_type'] : null,
             ]
         ]);
         break;

@@ -124,7 +124,10 @@ async function fetchAllThingRows(client, familyIdMaybe) {
   return { ok: true, thingList };
 }
 
-function parseDevicesFromGetThingsData(detailRes) {
+function parseDevicesFromGetThingsData(detailRes, chunkRefs) {
+  const idToItemType = new Map(
+    (chunkRefs || []).map((r) => [String(r.id), r.itemType === 2 ? 2 : 1])
+  );
   const devices = [];
   const dlist = detailRes.data?.thingList || detailRes.data?.deviceList || [];
   for (const item of dlist) {
@@ -139,11 +142,13 @@ function parseDevicesFromGetThingsData(detailRes) {
     if (!deviceId) {
       continue;
     }
+    const sid = String(deviceId);
     devices.push({
-      deviceId: String(deviceId),
+      deviceId: sid,
       name: dev.name || dev.deviceName || String(deviceId),
       online: dev.online !== false,
       productModel: dev.productModel || dev.extra?.model || "",
+      itemType: idToItemType.get(sid) ?? 1,
     });
   }
   return devices;
@@ -243,7 +248,7 @@ async function main() {
       );
       process.exit(1);
     }
-    allDevices.push(...parseDevicesFromGetThingsData(detailRes));
+    allDevices.push(...parseDevicesFromGetThingsData(detailRes, chunk));
   }
 
   process.stdout.write(

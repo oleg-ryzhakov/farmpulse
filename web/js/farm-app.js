@@ -3,6 +3,8 @@
     const API = (typeof window.API_BASE === 'string' ? window.API_BASE.replace(/\/$/, '') : '/api');
 
     const farmId = new URLSearchParams(location.search).get('id') || window.__FARM_ID__ || '';
+    /** @type {Record<string, unknown>|null} */
+    let lastFarmPayload = null;
 
     function escapeHtml(s) {
         return String(s)
@@ -333,6 +335,94 @@
         }
 
         await loadEwelinkFarmBlock(farm);
+        lastFarmPayload = farm;
+        updateFarmEwelinkToolbar(farm);
+    }
+
+    function updateFarmEwelinkToolbar(farm) {
+        const bar = document.getElementById('farmEwelinkBar');
+        if (!bar) {
+            return;
+        }
+        const id = farm.ewelink_device_id != null && String(farm.ewelink_device_id).trim() !== ''
+            ? String(farm.ewelink_device_id).trim()
+            : '';
+        if (!id) {
+            bar.classList.add('d-none');
+            return;
+        }
+        bar.classList.remove('d-none');
+        const label = document.getElementById('farmEwelinkBarLabel');
+        const name = (farm.ewelink_device_name && String(farm.ewelink_device_name).trim())
+            ? String(farm.ewelink_device_name).trim()
+            : id;
+        if (label) {
+            label.textContent = 'Розетка: ' + name;
+        }
+        farmEwelinkRefreshStatus();
+    }
+
+    async function farmEwelinkSwitch(on) {
+        const farm = lastFarmPayload;
+        if (!farm || !farm.ewelink_device_id) {
+            return;
+        }
+        const itemType = Number(farm.ewelink_device_item_type) === 2 ? 2 : 1;
+        const res = await fetch(`${API}/v2/integrations/ewelink.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'device_switch',
+                device_id: String(farm.ewelink_device_id),
+                item_type: itemType,
+                on: !!on
+            })
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            alert('eWeLink: ' + (data.message || res.status));
+            return;
+        }
+        farmEwelinkRefreshStatus();
+    }
+
+    async function farmEwelinkRefreshStatus() {
+        const farm = lastFarmPayload;
+        const badge = document.getElementById('farmEwelinkBarStatus');
+        if (!farm || !farm.ewelink_device_id || !badge) {
+            return;
+        }
+        badge.textContent = '…';
+        badge.className = 'badge bg-secondary small';
+        const res = await fetch(`${API}/v2/integrations/ewelink.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'device_status',
+                device_id: String(farm.ewelink_device_id)
+            })
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            badge.textContent = '?';
+            badge.title = data.message || '';
+            return;
+        }
+        badge.title = '';
+        const sw = data.switch;
+        if (sw === 'on') {
+            badge.className = 'badge bg-success small';
+            badge.textContent = 'Вкл';
+        } else if (sw === 'off') {
+            badge.className = 'badge bg-danger small';
+            badge.textContent = 'Выкл';
+        } else if (data.online === false) {
+            badge.className = 'badge bg-warning text-dark small';
+            badge.textContent = 'offline';
+        } else {
+            badge.className = 'badge bg-secondary small';
+            badge.textContent = '—';
+        }
     }
 
     function ewelinkFarmClearSelect(sel) {
@@ -425,6 +515,7 @@
             o.value = id;
             o.textContent = label;
             o.dataset.ewelinkName = baseName + (d.productModel ? ' · ' + d.productModel : '');
+            o.dataset.ewelinkItemType = String(d.itemType === 2 ? 2 : 1);
             sel.appendChild(o);
         }
 
@@ -434,6 +525,7 @@
             const orphanLabel = (farm.ewelink_device_name || currentId) + ' (сохранено, нет в списке)';
             o.textContent = orphanLabel;
             o.dataset.ewelinkName = farm.ewelink_device_name || currentId;
+            o.dataset.ewelinkItemType = String(Number(farm.ewelink_device_item_type) === 2 ? 2 : 1);
             sel.appendChild(o);
         }
 
@@ -465,6 +557,7 @@
 
     async function saveEwelinkFarmDevice() {
         const sel = document.getElementById('ewelinkFarmSelect');
+        const okBanner = document.getElementById('ewelinkBindOk');
         if (!sel) {
             return;
         }
@@ -476,11 +569,19 @@
         } else if (opt) {
             name = opt.textContent || '';
         }
+        const itemType = opt && opt.dataset && opt.dataset.ewelinkItemType
+            ? (parseInt(opt.dataset.ewelinkItemType, 10) === 2 ? 2 : 1)
+            : 1;
+        if (okBanner) {
+            okBanner.classList.add('d-none');
+            okBanner.textContent = '';
+        }
         const payload = {
             farm_id: farmId,
             action: 'set_ewelink_device',
             ewelink_device_id: id,
-            ewelink_device_name: name
+            ewelink_device_name: name,
+            ewelink_device_item_type: id ? itemType : 1
         };
         const res = await fetch(`${API}/v2/farms/command.php`, {
             method: 'POST',
@@ -491,7 +592,14 @@
             alert('Ошибка: ' + await res.text());
             return;
         }
-        alert('Привязка устройства к ферме сохранена');
+        if (okBanner) {
+            if (id) {
+                okBanner.textContent = 'Сохранено в конфигурации фермы: устройство «' + name + '» привязано. Панель «Розетка» выше использует эту привязку.';
+                okBanner.classList.remove('d-none');
+            } else {
+                okBanner.classList.add('d-none');
+            }
+        }
         refreshFarm();
     }
 
@@ -546,6 +654,8 @@
     window.queueReboot = queueReboot;
     window.refreshEwelinkFarmDevices = refreshEwelinkFarmDevices;
     window.saveEwelinkFarmDevice = saveEwelinkFarmDevice;
+    window.farmEwelinkSwitch = farmEwelinkSwitch;
+    window.farmEwelinkRefreshStatus = farmEwelinkRefreshStatus;
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!farmId) { alert('No farm id'); location.href = 'index.php'; return; }

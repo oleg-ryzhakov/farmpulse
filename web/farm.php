@@ -23,8 +23,17 @@ $farmId = isset($_GET['id']) ? (string)$_GET['id'] : '';
   <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h3 class="mb-0" id="farmNameHeading">Farm</h3>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap align-items-center">
         <button class="btn btn-secondary btn-sm" onclick="queueReboot()">🔄 Reboot</button>
+        <div id="farmEwelinkBar" class="d-none d-flex align-items-center gap-2 flex-wrap border border-secondary rounded px-2 py-1" style="background: rgba(33,37,41,.4);">
+          <span class="small text-light" id="farmEwelinkBarLabel">eWeLink</span>
+          <span class="badge bg-secondary small" id="farmEwelinkBarStatus">—</span>
+          <div class="btn-group btn-group-sm" role="group" aria-label="Розетка">
+            <button type="button" class="btn btn-outline-success" id="farmEwelinkBarOn" onclick="farmEwelinkSwitch(true)">Вкл</button>
+            <button type="button" class="btn btn-outline-danger" id="farmEwelinkBarOff" onclick="farmEwelinkSwitch(false)">Выкл</button>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-light py-0" id="farmEwelinkBarStatusBtn" onclick="farmEwelinkRefreshStatus()" title="Обновить статус розетки">⟳</button>
+        </div>
         <button class="btn btn-outline-light btn-sm" onclick="refreshFarm()">⟳ Refresh</button>
       </div>
     </div>
@@ -138,6 +147,7 @@ $farmId = isset($_GET['id']) ? (string)$_GET['id'] : '';
         <button type="button" class="btn btn-sm btn-outline-light" id="ewelinkFarmRefreshBtn" onclick="refreshEwelinkFarmDevices()" disabled>Обновить список</button>
       </div>
       <div class="card-body">
+        <div id="ewelinkBindOk" class="alert alert-success py-2 px-3 small mb-2 d-none" role="status"></div>
         <p class="small text-muted mb-2" id="ewelinkFarmHint">Проверка eWeLink…</p>
         <div class="row g-2 align-items-end">
           <div class="col-md-8">
