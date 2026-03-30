@@ -1,6 +1,7 @@
 /**
- * Статус розетки: stdin { at, region, deviceId }
- * GET /v2/device/thing/status — разбор params для Sonoff BASICR2 и др.
+ * Статус розетки: stdin { at, region, deviceId, itemType? 1|2 }
+ * 1) getThingStatus — часто BASICR2 / Sonoff возвращают ошибку или пустой разбор.
+ * 2) fallback: getThings по deviceId (тот же путь, что и в devices.mjs) — там же лежит switch.
  */
 import eWeLink from "ewelink-api-next";
 
@@ -43,7 +44,6 @@ function normalizeOnOff(val) {
   return null;
 }
 
-/** Параметры иногда приходят строкой вида switch=on&... */
 function fromQueryLikeString(str) {
   if (typeof str !== "string" || str.indexOf("=") === -1) {
     return null;
@@ -86,9 +86,6 @@ function pickSwitchFromFlatObject(obj) {
   return null;
 }
 
-/**
- * Рекурсивный поиск switch / switches в ответе (вложенные params, itemData).
- */
 function deepFindSwitch(obj, depth) {
   const d = depth ?? 0;
   if (d > 10 || obj == null) {
@@ -139,6 +136,38 @@ function deepFindSwitch(obj, depth) {
   return null;
 }
 
+/**
+ * Детали устройства через POST /v2/device/thing (getThings) — надёжнее для BASICR2.
+ */
+async function switchFromGetThings(client, deviceId, preferItemType) {
+  const order = preferItemType === 2 ? [2, 1] : [1, 2];
+  let online = true;
+  for (const it of order) {
+    const detailRes = await client.device.getThings({
+      thingList: [{ itemType: it, id: String(deviceId) }],
+    });
+    if (detailRes.error !== 0) {
+      continue;
+    }
+    const dlist = detailRes.data?.thingList || detailRes.data?.deviceList || [];
+    for (const item of dlist) {
+      let dev = item.itemData;
+      if (!dev || typeof dev !== "object" || Array.isArray(dev)) {
+        dev = item;
+      }
+      if (!dev || typeof dev !== "object") {
+        continue;
+      }
+      const sw = pickSwitchFromFlatObject(dev) || deepFindSwitch(dev) || deepFindSwitch(item);
+      if (dev.online === false) {
+        online = false;
+      }
+      return { switch: sw, online };
+    }
+  }
+  return { switch: null, online };
+}
+
 async function main() {
   const appId = process.env.EWELINK_APP_ID;
   const appSecret = process.env.EWELINK_APP_SECRET;
@@ -156,6 +185,7 @@ async function main() {
   const at = String(input.at || "");
   const region = String(input.region || "eu");
   const deviceId = String(input.deviceId || "").trim();
+  const preferItemType = Number(input.itemType) === 2 ? 2 : 1;
   if (!at || !deviceId) {
     console.error(JSON.stringify({ ok: false, error: "validation", msg: "at and deviceId required" }));
     process.exit(1);
@@ -169,28 +199,29 @@ async function main() {
   });
   client.at = at;
 
+  let sw = null;
+  let online = true;
+
   const res = await client.device.getThingStatus({
     type: 1,
     id: deviceId,
     params: "",
   });
-
-  if (res.error !== 0) {
-    console.error(
-      JSON.stringify({
-        ok: false,
-        error: res.error,
-        msg: res.msg || "getThingStatus failed",
-        data: res.data,
-      })
-    );
-    process.exit(1);
+  if (res.error === 0) {
+    sw = deepFindSwitch(res.data);
+    if (res.data && typeof res.data === "object" && res.data.online === false) {
+      online = false;
+    }
   }
 
-  const sw = deepFindSwitch(res.data);
-  let online = true;
-  if (res.data && typeof res.data === "object" && res.data.online === false) {
-    online = false;
+  if (sw == null) {
+    const fromThings = await switchFromGetThings(client, deviceId, preferItemType);
+    if (fromThings.switch != null) {
+      sw = fromThings.switch;
+    }
+    if (fromThings.online === false) {
+      online = false;
+    }
   }
 
   process.stdout.write(

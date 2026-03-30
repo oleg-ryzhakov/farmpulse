@@ -218,10 +218,15 @@ function ewelink_handle_device_status(array $body): void
         echo json_encode(['status' => 'error', 'message' => 'Укажите device_id']);
         return;
     }
+    $itemType = isset($body['item_type']) ? (int) $body['item_type'] : 1;
+    if ($itemType !== 1 && $itemType !== 2) {
+        $itemType = 1;
+    }
     $stdin = json_encode([
         'at' => $tok['at'],
         'region' => ($tok['region'] ?? '') !== '' ? $tok['region'] : 'eu',
         'deviceId' => $deviceId,
+        'itemType' => $itemType,
     ], JSON_UNESCAPED_UNICODE);
     $r = ewelink_run_node_script('device-status.mjs', [], $stdin);
     if (empty($r['ok'])) {

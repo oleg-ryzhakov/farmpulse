@@ -391,10 +391,10 @@
 
         if (errMsg) {
             ewelinkSocketState = null;
-            line.textContent = 'Статус: ошибка';
-            line.classList.add('ewelink-state-offline');
+            line.textContent = 'Опрос статуса не удался — включение/выключение всё ещё доступно';
+            line.classList.add('ewelink-state-unknown');
             line.title = errMsg;
-            btn.textContent = 'Повторить';
+            btn.textContent = 'Повторить опрос';
             btn.className = 'btn btn-sm btn-outline-warning';
             btn.disabled = false;
             return;
@@ -487,12 +487,14 @@
             return;
         }
         farmEwelinkToolbarSetLoading();
+        const itemType = Number(farm.ewelink_device_item_type) === 2 ? 2 : 1;
         const res = await fetch(`${API}/v2/integrations/ewelink.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 action: 'device_status',
-                device_id: String(farm.ewelink_device_id)
+                device_id: String(farm.ewelink_device_id),
+                item_type: itemType
             })
         });
         const data = await res.json().catch(function () { return {}; });
