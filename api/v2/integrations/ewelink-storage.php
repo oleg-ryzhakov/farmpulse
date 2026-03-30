@@ -74,6 +74,116 @@ function ewelink_decrypt_secrets(string $blob, string $keyMaterial): array
     return is_array($data) ? $data : [];
 }
 
+function ewelink_key_file_path(): string
+{
+    return ewelink_data_dir() . DIRECTORY_SEPARATOR . 'ewelink.key';
+}
+
+function ewelink_key_file_exists(): bool
+{
+    return is_readable(ewelink_key_file_path());
+}
+
+function ewelink_credentials_path(): string
+{
+    return ewelink_data_dir() . DIRECTORY_SEPARATOR . 'ewelink-credentials.json';
+}
+
+/** @return array{from_file:bool,app_id:string,has_app_secret:bool} */
+function ewelink_read_credentials_meta(): array
+{
+    $p = ewelink_credentials_path();
+    if (!is_readable($p)) {
+        return ['from_file' => false, 'app_id' => '', 'has_app_secret' => false];
+    }
+    $j = json_decode((string) file_get_contents($p), true);
+    if (!is_array($j)) {
+        return ['from_file' => false, 'app_id' => '', 'has_app_secret' => false];
+    }
+    return [
+        'from_file' => true,
+        'app_id' => (string) ($j['app_id'] ?? ''),
+        'has_app_secret' => !empty($j['app_secret_cipher']),
+    ];
+}
+
+/** @return ?array<string,mixed> */
+function ewelink_read_credentials_raw(): ?array
+{
+    $p = ewelink_credentials_path();
+    if (!is_readable($p)) {
+        return null;
+    }
+    $j = json_decode((string) file_get_contents($p), true);
+    return is_array($j) ? $j : null;
+}
+
+function ewelink_derive_subkey(string $keyMaterial, string $context): string
+{
+    return hash('sha256', $keyMaterial . "\x1e" . $context, true);
+}
+
+function ewelink_encrypt_app_secret(string $plain, string $keyMaterial): string
+{
+    $key = ewelink_derive_subkey($keyMaterial, 'coolkit-app-secret-v1');
+    $iv = random_bytes(12);
+    $tag = '';
+    $cipher = openssl_encrypt($plain, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+    if ($cipher === false) {
+        throw new RuntimeException('Encryption failed (app secret)');
+    }
+    return base64_encode($iv . $tag . $cipher);
+}
+
+function ewelink_decrypt_app_secret(string $blob, string $keyMaterial): string
+{
+    $raw = base64_decode($blob, true);
+    if ($raw === false || strlen($raw) < 28) {
+        throw new RuntimeException('Invalid app secret blob');
+    }
+    $iv = substr($raw, 0, 12);
+    $tag = substr($raw, 12, 16);
+    $cipher = substr($raw, 28);
+    $key = ewelink_derive_subkey($keyMaterial, 'coolkit-app-secret-v1');
+    $plain = openssl_decrypt($cipher, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+    if ($plain === false) {
+        throw new RuntimeException('Decryption failed (app secret)');
+    }
+    return $plain;
+}
+
+/**
+ * CoolKit APP ID + SECRET: сначала переменные окружения, иначе файл (секрет зашифрован мастер-ключом).
+ *
+ * @return array{0:string,1:string}|null
+ */
+function ewelink_resolve_coolkit_credentials(): ?array
+{
+    $id = ewelink_getenv_str('EWELINK_APP_ID');
+    $sec = ewelink_getenv_str('EWELINK_APP_SECRET');
+    if ($id !== '' && $sec !== '') {
+        return [$id, $sec];
+    }
+    $meta = ewelink_read_credentials_meta();
+    if (!$meta['from_file'] || $meta['app_id'] === '' || !$meta['has_app_secret']) {
+        return null;
+    }
+    $km = ewelink_key_material();
+    if ($km === '') {
+        return null;
+    }
+    $j = ewelink_read_credentials_raw();
+    if (!$j || empty($j['app_secret_cipher'])) {
+        return null;
+    }
+    try {
+        $sec2 = ewelink_decrypt_app_secret((string) $j['app_secret_cipher'], $km);
+    } catch (Throwable $e) {
+        return null;
+    }
+    return [$meta['app_id'], $sec2];
+}
+
 function ewelink_mask_account(string $account): string
 {
     $account = trim($account);

@@ -1,10 +1,8 @@
 <?php
 /**
- * Интеграция eWeLink: привязка аккаунта по логину/паролю через ewelink-api-next (Node CLI).
+ * Интеграция eWeLink: CoolKit (через веб или env), мастер-ключ (веб один раз → data/ewelink.key), аккаунт eWeLink.
  *
- * Требуется: Node.js в PATH, npm-зависимости в api/ewelink-node/ (npm ci)
- * Переменные окружения: EWELINK_APP_ID, EWELINK_APP_SECRET (CoolKit Developer Center)
- * Ключ шифрования: FARMPULSE_EWELINK_KEY (≥16 символов) или файл data/ewelink.key
+ * Node: api/ewelink-node/ (npm ci). Логин: ewelink-api-next (Node CLI).
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -45,6 +43,52 @@ function ewelink_write_state(array $state): bool
     return file_put_contents($statePath, json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) !== false;
 }
 
+function ewelink_ensure_data_dir(): bool
+{
+    global $dataDir;
+    if (is_dir($dataDir)) {
+        return true;
+    }
+    return @mkdir($dataDir, 0700, true) || is_dir($dataDir);
+}
+
+function ewelink_status_payload(): array
+{
+    $state = ewelink_read_state();
+    $credMeta = ewelink_read_credentials_meta();
+    $envId = ewelink_getenv_str('EWELINK_APP_ID');
+    $envSec = ewelink_getenv_str('EWELINK_APP_SECRET');
+    $coolkit_from_env = ($envId !== '' && $envSec !== '');
+
+    $keyFromEnv = ewelink_getenv_str('FARMPULSE_EWELINK_KEY');
+    $encryption_key_configured = (strlen($keyFromEnv) >= 16) || ewelink_key_file_exists();
+    $encryption_key_from_env = (strlen($keyFromEnv) >= 16);
+
+    $app_id = '';
+    if ($coolkit_from_env) {
+        $app_id = $envId;
+    } elseif ($credMeta['from_file']) {
+        $app_id = $credMeta['app_id'];
+    }
+
+    $payload = [
+        'status' => 'OK',
+        'connected' => (bool) ($state && !empty($state['meta'])),
+        'encryption_key_configured' => $encryption_key_configured,
+        'encryption_key_from_env' => $encryption_key_from_env,
+        'encryption_key_from_file' => ewelink_key_file_exists(),
+        'coolkit_from_env' => $coolkit_from_env,
+        'app_id' => $app_id,
+        'app_secret_configured' => $coolkit_from_env || $credMeta['has_app_secret'],
+    ];
+    if ($payload['connected']) {
+        $payload['account_masked'] = $state['meta']['account_masked'] ?? '';
+        $payload['region'] = $state['meta']['region'] ?? null;
+        $payload['connected_at'] = $state['meta']['connected_at'] ?? null;
+    }
+    return $payload;
+}
+
 function ewelink_child_env(string $appId, string $appSecret): array
 {
     $env = [];
@@ -79,14 +123,14 @@ function ewelink_run_node_login(array $input): array
         return ['ok' => false, 'error' => 'script', 'msg' => 'login.mjs not found'];
     }
 
+    $creds = ewelink_resolve_coolkit_credentials();
+    if (!$creds) {
+        return ['ok' => false, 'error' => 'config', 'msg' => 'Задайте EWELINK_APP_ID/SECRET в окружении или в настройках вкладки eWeLink'];
+    }
+    [$appId, $appSecret] = $creds;
+
     $node = ewelink_getenv_str('NODE_BINARY') ?: 'node';
     $cmd = $node . ' ' . escapeshellarg($scriptPath);
-
-    $appId = ewelink_getenv_str('EWELINK_APP_ID');
-    $appSecret = ewelink_getenv_str('EWELINK_APP_SECRET');
-    if (!$appId || !$appSecret) {
-        return ['ok' => false, 'error' => 'config', 'msg' => 'EWELINK_APP_ID and EWELINK_APP_SECRET must be set on the server'];
-    }
 
     $descriptorspec = [
         0 => ['pipe', 'r'],
@@ -133,22 +177,118 @@ function ewelink_run_node_login(array $input): array
     return is_array($out) ? $out : ['ok' => false, 'error' => 'parse', 'msg' => 'Invalid node output'];
 }
 
-if ($method === 'GET') {
-    $state = ewelink_read_state();
-    if (!$state || empty($state['meta'])) {
+function ewelink_handle_save_settings(array $body): void
+{
+    if (ewelink_getenv_str('EWELINK_APP_ID') !== '' && ewelink_getenv_str('EWELINK_APP_SECRET') !== '') {
+        http_response_code(409);
         echo json_encode([
-            'status' => 'OK',
-            'connected' => false,
+            'status' => 'error',
+            'message' => 'CoolKit задан в окружении сервера; отредактируйте переменные EWELINK_APP_* или удалите их для настройки из веба.',
         ]);
-        exit;
+        return;
     }
-    echo json_encode([
-        'status' => 'OK',
-        'connected' => true,
-        'account_masked' => $state['meta']['account_masked'] ?? '',
-        'region' => $state['meta']['region'] ?? null,
-        'connected_at' => $state['meta']['connected_at'] ?? null,
-    ]);
+
+    $encryptionKeyInput = isset($body['encryption_key']) ? trim((string) $body['encryption_key']) : '';
+    $appIdInput = isset($body['app_id']) ? trim((string) $body['app_id']) : '';
+    $appSecretInput = isset($body['app_secret']) ? (string) $body['app_secret'] : '';
+
+    $hadKeyFile = ewelink_key_file_exists();
+    $keyFromEnv = strlen(ewelink_getenv_str('FARMPULSE_EWELINK_KEY')) >= 16;
+
+    if ($encryptionKeyInput !== '') {
+        if ($keyFromEnv) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Мастер-ключ задан в окружении (FARMPULSE_EWELINK_KEY); поле веба не используется.']);
+            return;
+        }
+        if ($hadKeyFile) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Секретный ключ уже сохранён; изменить или просмотреть его через интерфейс нельзя.']);
+            return;
+        }
+        if (strlen($encryptionKeyInput) < 16) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Секретный ключ: не менее 16 символов.']);
+            return;
+        }
+        if (!ewelink_ensure_data_dir()) {
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'Не удалось создать каталог data']);
+            return;
+        }
+        $kf = ewelink_key_file_path();
+        if (file_put_contents($kf, $encryptionKeyInput) === false) {
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'Не удалось записать ewelink.key']);
+            return;
+        }
+        @chmod($kf, 0600);
+    }
+
+    $keyMaterial = ewelink_key_material();
+    if ($keyMaterial === '') {
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Сначала задайте секретный ключ шифрования (один раз) или переменную FARMPULSE_EWELINK_KEY на сервере.',
+        ]);
+        return;
+    }
+
+    if ($appIdInput === '' && $appSecretInput === '' && $encryptionKeyInput === '') {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'Нет данных для сохранения']);
+        return;
+    }
+
+    if ($appIdInput !== '' || $appSecretInput !== '') {
+        $meta = ewelink_read_credentials_meta();
+        $j = ewelink_read_credentials_raw() ?: [];
+
+        $newId = $appIdInput !== '' ? $appIdInput : ($j['app_id'] ?? '');
+        if ($newId === '') {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Укажите APP ID']);
+            return;
+        }
+        $j['app_id'] = $newId;
+
+        if ($appSecretInput !== '') {
+            try {
+                $j['app_secret_cipher'] = ewelink_encrypt_app_secret($appSecretInput, $keyMaterial);
+            } catch (Throwable $e) {
+                http_response_code(500);
+                echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+                return;
+            }
+        } elseif (empty($j['app_secret_cipher'])) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'При первом сохранении укажите APP SECRET']);
+            return;
+        }
+
+        if (!ewelink_ensure_data_dir()) {
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'Не удалось создать каталог data']);
+            return;
+        }
+        if (file_put_contents(
+            ewelink_credentials_path(),
+            json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        ) === false) {
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'Не удалось сохранить учётные данные CoolKit']);
+            return;
+        }
+        @chmod(ewelink_credentials_path(), 0600);
+    }
+
+    echo json_encode(array_merge(ewelink_status_payload(), ['status' => 'OK']));
+}
+
+if ($method === 'GET') {
+    echo json_encode(array_merge(ewelink_status_payload(), ['status' => 'OK']));
+
     exit;
 }
 
@@ -156,12 +296,18 @@ if ($method === 'DELETE') {
     if (is_file($statePath)) {
         @unlink($statePath);
     }
-    echo json_encode(['status' => 'OK', 'connected' => false]);
+    echo json_encode(array_merge(ewelink_status_payload(), ['connected' => false, 'status' => 'OK']));
     exit;
 }
 
 if ($method === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true) ?: [];
+
+    if (($body['action'] ?? '') === 'save_settings') {
+        ewelink_handle_save_settings($body);
+        exit;
+    }
+
     $account = isset($body['account']) ? trim((string) $body['account']) : '';
     $password = isset($body['password']) ? (string) $body['password'] : '';
     $areaCode = isset($body['area_code']) ? trim((string) $body['area_code']) : '+7';
@@ -178,7 +324,16 @@ if ($method === 'POST') {
         http_response_code(500);
         echo json_encode([
             'status' => 'error',
-            'message' => 'Задайте FARMPULSE_EWELINK_KEY в окружении или создайте файл data/ewelink.key (секрет ≥16 символов)',
+            'message' => 'Задайте секретный ключ шифрования во вкладке eWeLink или FARMPULSE_EWELINK_KEY / data/ewelink.key на сервере',
+        ]);
+        exit;
+    }
+
+    if (!ewelink_resolve_coolkit_credentials()) {
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Сначала сохраните APP ID и APP SECRET CoolKit в блоке настроек выше или через окружение сервера',
         ]);
         exit;
     }

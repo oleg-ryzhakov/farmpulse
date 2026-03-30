@@ -389,12 +389,53 @@ function deleteFarm() {
     .catch(error => console.error('Error deleting worker:', error));
 }
 
+function applyEwelinkCoolkitForm(data) {
+    const rowKey = document.getElementById('ewelinkRowMasterKey');
+    const rowKeyOk = document.getElementById('ewelinkRowMasterKeyOk');
+    const keySource = document.getElementById('ewelinkMasterKeySource');
+    const envWarn = document.getElementById('ewelinkCoolkitEnvWarn');
+    const appId = document.getElementById('ewelinkAppId');
+    const appSec = document.getElementById('ewelinkAppSecret');
+    const masterInput = document.getElementById('ewelinkMasterKey');
+    if (!rowKey || !appId) return;
+
+    const keyDone = !!data.encryption_key_configured;
+    if (keyDone) {
+        rowKey.classList.add('d-none');
+        if (masterInput) masterInput.value = '';
+        if (rowKeyOk) rowKeyOk.classList.remove('d-none');
+        if (keySource) {
+            keySource.textContent = data.encryption_key_from_env
+                ? '(задан в окружении сервера FARMPULSE_EWELINK_KEY)'
+                : '(файл на сервере; через веб не меняется)';
+        }
+    } else {
+        rowKey.classList.remove('d-none');
+        if (rowKeyOk) rowKeyOk.classList.add('d-none');
+        if (keySource) keySource.textContent = '';
+    }
+
+    const fromEnv = !!data.coolkit_from_env;
+    if (envWarn) envWarn.classList.toggle('d-none', !fromEnv);
+    appId.disabled = fromEnv;
+    if (appSec) appSec.disabled = fromEnv;
+    appId.value = data.app_id || '';
+
+    if (data.app_secret_configured && appSec) {
+        appSec.placeholder = 'уже сохранён — введите новый, чтобы заменить';
+        appSec.value = '';
+    } else if (appSec) {
+        appSec.placeholder = 'APP SECRET из консоли';
+    }
+}
+
 function loadEwelinkStatus() {
     const el = document.getElementById('ewelinkStatus');
     if (!el) return Promise.resolve();
     return fetch(API + '/v2/integrations/ewelink.php')
         .then(r => r.json())
         .then(data => {
+            applyEwelinkCoolkitForm(data);
             if (data.connected) {
                 el.innerHTML = 'Аккаунт подключён: <strong>' + (data.account_masked || '—') + '</strong>' +
                     (data.region ? ' · регион ' + data.region : '') +
@@ -409,6 +450,44 @@ function loadEwelinkStatus() {
             el.textContent = 'Не удалось загрузить статус eWeLink (проверьте API и Node.js на сервере).';
             el.classList.add('text-danger');
         });
+}
+
+function saveEwelinkCoolkitSettings() {
+    const envWarn = document.getElementById('ewelinkCoolkitEnvWarn');
+    if (envWarn && !envWarn.classList.contains('d-none')) {
+        alert('CoolKit задан в окружении сервера — сохранение из веба отключено.');
+        return;
+    }
+    const enc = document.getElementById('ewelinkMasterKey');
+    const rowKey = document.getElementById('ewelinkRowMasterKey');
+    const payload = {
+        action: 'save_settings',
+        app_id: (document.getElementById('ewelinkAppId') && document.getElementById('ewelinkAppId').value) ? document.getElementById('ewelinkAppId').value.trim() : '',
+        app_secret: (document.getElementById('ewelinkAppSecret') && document.getElementById('ewelinkAppSecret').value) ? document.getElementById('ewelinkAppSecret').value : ''
+    };
+    if (rowKey && !rowKey.classList.contains('d-none') && enc && enc.value.trim() !== '') {
+        payload.encryption_key = enc.value.trim();
+    }
+    fetch(API + '/v2/integrations/ewelink.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+        .then(async res => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.message || data.msg || ('HTTP ' + res.status));
+            }
+            return data;
+        })
+        .then(() => {
+            if (enc) enc.value = '';
+            const appSec = document.getElementById('ewelinkAppSecret');
+            if (appSec) appSec.value = '';
+            loadEwelinkStatus();
+            alert('Настройки CoolKit сохранены.');
+        })
+        .catch(err => alert('Ошибка: ' + err.message));
 }
 
 function saveEwelinkAccount() {
