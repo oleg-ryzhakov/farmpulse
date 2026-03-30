@@ -405,6 +405,7 @@
         }
 
         const devices = Array.isArray(res.devices) ? res.devices : [];
+        const meta = res.meta || {};
         const currentId = farm.ewelink_device_id != null && farm.ewelink_device_id !== ''
             ? String(farm.ewelink_device_id)
             : '';
@@ -441,9 +442,15 @@
             sel.value = '';
         }
 
-        hint.textContent = devices.length
-            ? ('Выберите устройство и нажмите «Сохранить». В списке: ' + devices.length + '.')
-            : 'В аккаунте нет устройств или API вернул пустой список.';
+        if (devices.length) {
+            hint.textContent = 'Выберите устройство и нажмите «Сохранить». В списке: ' + devices.length + '.';
+        } else if (meta.thingRows > 0 && meta.refs === 0) {
+            hint.textContent = 'API вернул записи (things: ' + meta.thingRows + '), но без отдельных устройств — возможно, в доме только группы или нестандартный формат. Обновите Farmpulse с сервера.';
+        } else if (meta.thingRows > 0) {
+            hint.textContent = 'Записей: ' + meta.thingRows + ', ссылок на устройства: ' + (meta.refs != null ? meta.refs : '?') + ', в списке пусто — проверьте ответ API на сервере.';
+        } else {
+            hint.textContent = 'В аккаунте нет устройств или API вернул пустой список (проверьте приложение eWeLink и регион аккаунта).';
+        }
         sel.disabled = false;
         saveBtn.disabled = false;
     }

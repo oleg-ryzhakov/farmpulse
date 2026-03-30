@@ -149,11 +149,15 @@ function ewelink_handle_devices(): void
         echo json_encode(['status' => 'error', 'message' => is_string($msg) ? $msg : json_encode($r)]);
         return;
     }
-    echo json_encode([
+    $out = [
         'status' => 'OK',
         'devices' => $r['devices'] ?? [],
         'familyId' => $r['familyId'] ?? null,
-    ]);
+    ];
+    if (!empty($r['_meta']) && is_array($r['_meta'])) {
+        $out['meta'] = $r['_meta'];
+    }
+    echo json_encode($out);
 }
 
 function ewelink_handle_save_settings(array $body): void
