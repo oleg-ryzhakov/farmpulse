@@ -56,6 +56,8 @@ switch ($method) {
                 'summary_uptime_sec' => $f['summary_uptime_sec'] ?? null,
                 'summary_net_ips' => $f['summary_net_ips'] ?? null,
                 'heat_warning' => $f['heat_warning'] ?? false,
+                'ewelink_device_id' => $f['ewelink_device_id'] ?? null,
+                'ewelink_device_name' => $f['ewelink_device_name'] ?? null,
             ]
         ]);
         break;

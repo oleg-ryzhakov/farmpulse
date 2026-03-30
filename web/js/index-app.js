@@ -431,6 +431,32 @@ function applyEwelinkCoolkitForm(data) {
     if (oauthUrlEl && data.oauth_callback_url) {
         oauthUrlEl.textContent = data.oauth_callback_url;
     }
+    const banner = document.getElementById('ewelinkConnectedBanner');
+    const detail = document.getElementById('ewelinkConnectedDetail');
+    const muted = document.getElementById('ewelinkOAuthMuted');
+    const btnOauth = document.getElementById('ewelinkBtnOAuth');
+    if (banner && detail) {
+        if (data.connected) {
+            banner.classList.remove('d-none');
+            const via = data.auth_via === 'oauth' ? 'OAuth' : 'пароль';
+            detail.textContent = 'Аккаунт: ' + (data.account_masked || '—') + (data.region ? ' · регион ' + data.region : '') + ' · способ: ' + via + '.';
+            if (muted) muted.classList.remove('d-none');
+            if (btnOauth) {
+                btnOauth.classList.remove('btn-success');
+                btnOauth.classList.add('btn-outline-success');
+                btnOauth.textContent = 'Переподключить (OAuth)';
+            }
+        } else {
+            banner.classList.add('d-none');
+            detail.textContent = '';
+            if (muted) muted.classList.add('d-none');
+            if (btnOauth) {
+                btnOauth.classList.add('btn-success');
+                btnOauth.classList.remove('btn-outline-success');
+                btnOauth.textContent = 'Войти через eWeLink (OAuth)';
+            }
+        }
+    }
 }
 
 function loadEwelinkStatus() {
@@ -441,12 +467,11 @@ function loadEwelinkStatus() {
         .then(data => {
             applyEwelinkCoolkitForm(data);
             if (data.connected) {
-                el.innerHTML = 'Аккаунт подключён: <strong>' + (data.account_masked || '—') + '</strong>' +
-                    (data.region ? ' · регион ' + data.region : '') +
-                    (data.connected_at ? ' · ' + data.connected_at + ' UTC' : '');
+                el.innerHTML = '<span class="text-success">Сессия активна.</span> ' +
+                    (data.connected_at ? ('Подключено: ' + data.connected_at + ' UTC.') : '');
                 el.classList.remove('text-danger');
             } else {
-                el.textContent = 'Аккаунт eWeLink не привязан.';
+                el.textContent = 'Аккаунт eWeLink не привязан — выполните OAuth или логин по паролю (если разрешён в консоли).';
                 el.classList.remove('text-danger');
             }
         })

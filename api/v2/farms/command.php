@@ -31,7 +31,7 @@ if (!isset($config['farms'][$farmId])) {
     exit;
 }
 
-$allowed = ['reboot','update_password','update_name'];
+$allowed = ['reboot', 'update_password', 'update_name', 'set_ewelink_device'];
 if (!in_array($action, $allowed, true)) {
     http_response_code(400);
     echo json_encode(['status' => 'error', 'message' => 'Unsupported action']);
@@ -72,6 +72,22 @@ if ($action === 'reboot') {
     }
     $config['farms'][$farmId]['name'] = $newName;
     file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+    echo json_encode(['status' => 'OK']);
+    exit;
+} elseif ($action === 'set_ewelink_device') {
+    $deviceId = isset($body['ewelink_device_id']) ? trim((string) $body['ewelink_device_id']) : '';
+    $deviceName = isset($body['ewelink_device_name']) ? trim((string) $body['ewelink_device_name']) : '';
+    if ($deviceId === '') {
+        unset($config['farms'][$farmId]['ewelink_device_id'], $config['farms'][$farmId]['ewelink_device_name']);
+    } else {
+        $config['farms'][$farmId]['ewelink_device_id'] = $deviceId;
+        $config['farms'][$farmId]['ewelink_device_name'] = $deviceName;
+    }
+    if (!file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT))) {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => 'Failed to save configuration']);
+        exit;
+    }
     echo json_encode(['status' => 'OK']);
     exit;
 } else {

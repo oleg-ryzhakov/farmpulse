@@ -132,8 +132,25 @@ $farmId = isset($_GET['id']) ? (string)$_GET['id'] : '';
       <div class="collapse" id="lastStatsPre"><pre class="card-body small mb-0 text-wrap" style="max-height:420px;overflow:auto" id="lastStatsJson">—</pre></div>
     </div>
 
-    <div class="alert alert-secondary border-secondary mb-4" style="background: rgba(33,37,41,.5); color: #dee2e6;">
-      <strong>eWeLink:</strong> если аккаунт eWeLink уже привязан на главной странице (вкладка «eWeLink»), здесь позже можно будет выбрать устройство для этой фермы (розетка и т.д.). Сейчас привязка устройств к фермам — в следующем шаге разработки.
+    <div class="card mb-4" id="ewelinkFarmCard">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>eWeLink — устройство для этой фермы</span>
+        <button type="button" class="btn btn-sm btn-outline-light" id="ewelinkFarmRefreshBtn" onclick="refreshEwelinkFarmDevices()" disabled>Обновить список</button>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted mb-2" id="ewelinkFarmHint">Проверка eWeLink…</p>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-8">
+            <label class="form-label mb-1" for="ewelinkFarmSelect">Устройство (розетка и т.д.)</label>
+            <select class="form-select form-select-sm bg-dark text-light" id="ewelinkFarmSelect" disabled>
+              <option value="">— не выбрано —</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <button type="button" class="btn btn-success btn-sm w-100" id="ewelinkFarmSaveBtn" disabled onclick="saveEwelinkFarmDevice()">Сохранить</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="card mb-4">

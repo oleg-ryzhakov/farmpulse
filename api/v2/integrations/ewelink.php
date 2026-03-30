@@ -130,6 +130,32 @@ function ewelink_handle_oauth_start(): void
     ]);
 }
 
+function ewelink_handle_devices(): void
+{
+    $tok = ewelink_read_session_tokens();
+    if (!$tok || ($tok['at'] ?? '') === '') {
+        http_response_code(401);
+        echo json_encode(['status' => 'error', 'message' => 'Сначала подключите eWeLink.']);
+        return;
+    }
+    $stdin = json_encode([
+        'at' => $tok['at'],
+        'region' => ($tok['region'] ?? '') !== '' ? $tok['region'] : 'eu',
+    ], JSON_UNESCAPED_UNICODE);
+    $r = ewelink_run_node_script('devices.mjs', [], $stdin);
+    if (empty($r['ok'])) {
+        http_response_code(502);
+        $msg = $r['msg'] ?? 'devices';
+        echo json_encode(['status' => 'error', 'message' => is_string($msg) ? $msg : json_encode($r)]);
+        return;
+    }
+    echo json_encode([
+        'status' => 'OK',
+        'devices' => $r['devices'] ?? [],
+        'familyId' => $r['familyId'] ?? null,
+    ]);
+}
+
 function ewelink_handle_save_settings(array $body): void
 {
     if (ewelink_getenv_str('EWELINK_APP_ID') !== '' && ewelink_getenv_str('EWELINK_APP_SECRET') !== '') {
@@ -242,6 +268,10 @@ function ewelink_handle_save_settings(array $body): void
 if ($method === 'GET') {
     if (($_GET['action'] ?? '') === 'oauth_start') {
         ewelink_handle_oauth_start();
+        exit;
+    }
+    if (($_GET['action'] ?? '') === 'devices') {
+        ewelink_handle_devices();
         exit;
     }
     echo json_encode(array_merge(ewelink_status_payload(), ['status' => 'OK']));

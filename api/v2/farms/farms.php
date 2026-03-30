@@ -44,6 +44,8 @@ switch ($method) {
                 'summary_uptime_sec' => $farm['summary_uptime_sec'] ?? null,
                 'summary_net_ips' => $farm['summary_net_ips'] ?? null,
                 'heat_warning' => $farm['heat_warning'] ?? false,
+                'ewelink_device_id' => $farm['ewelink_device_id'] ?? null,
+                'ewelink_device_name' => $farm['ewelink_device_name'] ?? null,
             ];
         }
         echo json_encode([

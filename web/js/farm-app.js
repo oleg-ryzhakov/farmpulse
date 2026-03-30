@@ -331,6 +331,161 @@
             document.getElementById('fPass').value = fs.flightsheet.pass ?? 'x';
             document.getElementById('fCoin').value = fs.flightsheet.coin || '';
         }
+
+        await loadEwelinkFarmBlock(farm);
+    }
+
+    function ewelinkFarmClearSelect(sel) {
+        while (sel.firstChild) {
+            sel.removeChild(sel.firstChild);
+        }
+        const o0 = document.createElement('option');
+        o0.value = '';
+        o0.textContent = '— не выбрано —';
+        sel.appendChild(o0);
+    }
+
+    async function loadEwelinkFarmBlock(farm) {
+        const hint = document.getElementById('ewelinkFarmHint');
+        const sel = document.getElementById('ewelinkFarmSelect');
+        const saveBtn = document.getElementById('ewelinkFarmSaveBtn');
+        const refreshBtn = document.getElementById('ewelinkFarmRefreshBtn');
+        if (!hint || !sel || !saveBtn) {
+            return;
+        }
+        try {
+            const stRes = await fetch(`${API}/v2/integrations/ewelink.php`);
+            const st = await stRes.json();
+            if (!st.connected) {
+                hint.innerHTML = 'Аккаунт eWeLink не привязан. На <a href="index.php" class="link-light">главной</a> откройте вкладку «eWeLink» и выполните OAuth.';
+                ewelinkFarmClearSelect(sel);
+                sel.disabled = true;
+                saveBtn.disabled = true;
+                if (refreshBtn) {
+                    refreshBtn.disabled = true;
+                }
+                return;
+            }
+            if (refreshBtn) {
+                refreshBtn.disabled = false;
+            }
+            await populateEwelinkDeviceSelect(farm);
+        } catch (e) {
+            hint.textContent = 'Не удалось проверить статус eWeLink.';
+            sel.disabled = true;
+            saveBtn.disabled = true;
+            if (refreshBtn) {
+                refreshBtn.disabled = true;
+            }
+        }
+    }
+
+    async function populateEwelinkDeviceSelect(farm) {
+        const hint = document.getElementById('ewelinkFarmHint');
+        const sel = document.getElementById('ewelinkFarmSelect');
+        const saveBtn = document.getElementById('ewelinkFarmSaveBtn');
+        if (!hint || !sel || !saveBtn) {
+            return;
+        }
+        hint.textContent = 'Загрузка устройств…';
+        sel.disabled = true;
+        saveBtn.disabled = true;
+
+        let res;
+        try {
+            const r = await fetch(`${API}/v2/integrations/ewelink.php?action=devices`);
+            res = await r.json().catch(() => ({}));
+            if (!r.ok) {
+                throw new Error(res.message || res.msg || ('HTTP ' + r.status));
+            }
+        } catch (e) {
+            hint.textContent = 'Список устройств недоступен: ' + (e && e.message ? e.message : String(e));
+            ewelinkFarmClearSelect(sel);
+            return;
+        }
+
+        const devices = Array.isArray(res.devices) ? res.devices : [];
+        const currentId = farm.ewelink_device_id != null && farm.ewelink_device_id !== ''
+            ? String(farm.ewelink_device_id)
+            : '';
+
+        ewelinkFarmClearSelect(sel);
+        for (let i = 0; i < devices.length; i++) {
+            const d = devices[i];
+            const id = String(d.deviceId || '');
+            if (!id) {
+                continue;
+            }
+            const baseName = d.name || id;
+            const off = d.online === false ? ' (offline)' : '';
+            const pm = d.productModel ? ' · ' + d.productModel : '';
+            const label = baseName + off + pm;
+            const o = document.createElement('option');
+            o.value = id;
+            o.textContent = label;
+            o.dataset.ewelinkName = baseName + (d.productModel ? ' · ' + d.productModel : '');
+            sel.appendChild(o);
+        }
+
+        if (currentId && !devices.some(function (dd) { return String(dd.deviceId || '') === currentId; })) {
+            const o = document.createElement('option');
+            o.value = currentId;
+            const orphanLabel = (farm.ewelink_device_name || currentId) + ' (сохранено, нет в списке)';
+            o.textContent = orphanLabel;
+            o.dataset.ewelinkName = farm.ewelink_device_name || currentId;
+            sel.appendChild(o);
+        }
+
+        sel.value = currentId;
+        if (currentId && sel.value !== currentId) {
+            sel.value = '';
+        }
+
+        hint.textContent = devices.length
+            ? ('Выберите устройство и нажмите «Сохранить». В списке: ' + devices.length + '.')
+            : 'В аккаунте нет устройств или API вернул пустой список.';
+        sel.disabled = false;
+        saveBtn.disabled = false;
+    }
+
+    async function refreshEwelinkFarmDevices() {
+        const data = await fetch(`${API}/v2/farms/workers.php?farm_id=${encodeURIComponent(farmId)}`).then(function (r) {
+            return r.json();
+        });
+        const farm = data.farm || {};
+        await populateEwelinkDeviceSelect(farm);
+    }
+
+    async function saveEwelinkFarmDevice() {
+        const sel = document.getElementById('ewelinkFarmSelect');
+        if (!sel) {
+            return;
+        }
+        const id = sel.value.trim();
+        const opt = sel.options[sel.selectedIndex];
+        let name = '';
+        if (opt && opt.dataset && opt.dataset.ewelinkName) {
+            name = opt.dataset.ewelinkName;
+        } else if (opt) {
+            name = opt.textContent || '';
+        }
+        const payload = {
+            farm_id: farmId,
+            action: 'set_ewelink_device',
+            ewelink_device_id: id,
+            ewelink_device_name: name
+        };
+        const res = await fetch(`${API}/v2/farms/command.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            alert('Ошибка: ' + await res.text());
+            return;
+        }
+        alert('Привязка устройства к ферме сохранена');
+        refreshFarm();
     }
 
     async function saveFlight(apply) {
@@ -382,6 +537,8 @@
     window.saveFlight = saveFlight;
     window.clearFlight = clearFlight;
     window.queueReboot = queueReboot;
+    window.refreshEwelinkFarmDevices = refreshEwelinkFarmDevices;
+    window.saveEwelinkFarmDevice = saveEwelinkFarmDevice;
 
     document.addEventListener('DOMContentLoaded', () => {
         if (!farmId) { alert('No farm id'); location.href = 'index.php'; return; }

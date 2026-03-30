@@ -137,11 +137,18 @@ require __DIR__ . '/includes/config.php';
                     <button type="button" class="btn btn-warning btn-sm" onclick="saveEwelinkCoolkitSettings()">Сохранить настройки CoolKit</button>
                   </div>
                 </div>
-                <div class="border border-secondary rounded p-3 mb-4" style="background: rgba(33,37,41,.25);">
+                <div id="ewelinkConnectedBanner" class="alert alert-success border-success d-none py-2 mb-3">
+                  <strong>eWeLink подключён.</strong> <span id="ewelinkConnectedDetail"></span>
+                  <span class="text-muted small ms-1">Устройства выбирайте в карточке каждой фермы.</span>
+                </div>
+                <div id="ewelinkOAuthBlock" class="border border-secondary rounded p-3 mb-4" style="background: rgba(33,37,41,.25);">
                   <h6 class="mb-2">Вход в аккаунт eWeLink (OAuth 2.0)</h6>
                   <p class="small text-muted mb-2">Для приложения типа <strong>OAuth2.0</strong> в <a href="https://dev.ewelink.cc/#/console" class="link-light" target="_blank" rel="noopener">консоли CoolKit</a> укажите <strong>Redirect URL</strong> <span class="text-warning">точно</span> как ниже (замените корень сайта, если другой домен):</p>
                   <p class="small mb-2"><code id="ewelinkOAuthCallbackUrl" class="text-break user-select-all">—</code></p>
-                  <button type="button" class="btn btn-success btn-sm" onclick="startEwelinkOAuth()">Войти через eWeLink (OAuth)</button>
+                  <div class="d-flex flex-wrap align-items-center gap-2">
+                    <button type="button" class="btn btn-success btn-sm" id="ewelinkBtnOAuth" onclick="startEwelinkOAuth()">Войти через eWeLink (OAuth)</button>
+                    <span id="ewelinkOAuthMuted" class="small text-muted d-none">Уже авторизованы — можно переподключить другой аккаунт (старый отвяжите кнопкой ниже).</span>
+                  </div>
                   <p class="small text-muted mt-2 mb-0">Откроется страница авторизации eWeLink; после входа вы вернётесь на этот сайт.</p>
                 </div>
                 <div id="ewelinkStatus" class="mb-3 small text-muted">Загрузка статуса…</div>

@@ -65,6 +65,37 @@ function ewelink_encrypt_secrets(array $plain, string $keyMaterial): string
     return base64_encode($iv . $tag . $cipher);
 }
 
+/**
+ * Расшифровать сохранённую сессию eWeLink (at/rt) из ewelink-state.json.
+ *
+ * @return array{at:string,rt:string,region:string}|null
+ */
+function ewelink_read_session_tokens(): ?array
+{
+    $p = ewelink_state_path();
+    if (!is_readable($p)) {
+        return null;
+    }
+    $j = json_decode((string) file_get_contents($p), true);
+    if (!is_array($j) || empty($j['secrets'])) {
+        return null;
+    }
+    $km = ewelink_key_material();
+    if ($km === '') {
+        return null;
+    }
+    try {
+        $dec = ewelink_decrypt_secrets((string) $j['secrets'], $km);
+    } catch (Throwable $e) {
+        return null;
+    }
+    return [
+        'at' => (string) ($dec['at'] ?? ''),
+        'rt' => (string) ($dec['rt'] ?? ''),
+        'region' => (string) ($j['meta']['region'] ?? 'eu'),
+    ];
+}
+
 function ewelink_decrypt_secrets(string $blob, string $keyMaterial): array
 {
     $raw = base64_decode($blob, true);
