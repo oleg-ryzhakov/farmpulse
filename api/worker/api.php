@@ -9,28 +9,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$configFile = __DIR__ . '/../v2/farms/config.json';
-$config = json_decode(@file_get_contents($configFile), true);
-if (!is_array($config)) {
-    $config = ['farms' => []];
-}
-
-require_once __DIR__ . '/app_api_sync.php';
 require_once __DIR__ . '/request_parse.php';
 require_once __DIR__ . '/farm_stats_store.php';
+require_once __DIR__ . '/../v2/farms/config_io.php';
+
+$configFile = __DIR__ . '/../v2/farms/config.json';
 
 // Simple logger
 $logFile = __DIR__ . '/../v2/requests.log';
 $uri = $_SERVER['REQUEST_URI'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'] ?? '';
 $hdrs = [];
-foreach ($_SERVER as $k => $v) { if (strpos($k, 'HTTP_') === 0) { $hdrs[$k] = $v; } }
+foreach ($_SERVER as $k => $v) {
+    if (strpos($k, 'HTTP_') === 0) {
+        $hdrs[$k] = $v;
+    }
+}
 $rawBody = file_get_contents('php://input');
-@file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] workerAPI $method $uri\n" . json_encode($hdrs) . "\n" . ($rawBody ?: '') . "\n---\n", FILE_APPEND);
+@file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . "] workerAPI $method $uri\n" . json_encode($hdrs) . "\n" . ($rawBody ?: '') . "\n---\n", FILE_APPEND);
 
 // Parse inputs (query + gzip/json/msgpack + form)
-$queryId = isset($_GET['id_rig']) ? (string)$_GET['id_rig'] : null;
-$queryMethod = isset($_GET['method']) ? (string)$_GET['method'] : null;
+$queryId = isset($_GET['id_rig']) ? (string) $_GET['id_rig'] : null;
+$queryMethod = isset($_GET['method']) ? (string) $_GET['method'] : null;
 $contentType = $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? '');
 $contentEncoding = $_SERVER['HTTP_CONTENT_ENCODING'] ?? '';
 $post = [];
@@ -44,8 +44,10 @@ $rpcParams = is_array($post['params'] ?? null) ? $post['params'] : [];
 $password = $post['password'] ?? ($_POST['password'] ?? ($_GET['password'] ?? ($rpcParams['passwd'] ?? null)));
 
 $farmId = $queryId ?? ($post['id_rig'] ?? ($rpcParams['rig_id'] ?? null));
-$op = strtolower((string)$queryMethod);
-if ($op === '' && isset($post['method'])) { $op = strtolower((string)$post['method']); }
+$op = strtolower((string) $queryMethod);
+if ($op === '' && isset($post['method'])) {
+    $op = strtolower((string) $post['method']);
+}
 
 if (!$farmId) {
     http_response_code(400);
@@ -53,14 +55,15 @@ if (!$farmId) {
     exit;
 }
 
-if (!isset($config['farms'][$farmId])) {
-    http_response_code(404);
-    echo json_encode(['status' => 'error', 'message' => 'Farm not found']);
+if (!in_array($op, ['hello', 'stats', 'message'], true)) {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'Unknown method']);
     exit;
 }
 
 // helper to build minimal config payload from global config
-function buildFarmRuntimeConfig(array $config): array {
+function buildFarmRuntimeConfig(array $config): array
+{
     $mining = $config['mining'] ?? [];
     $defaultPool = $mining['default_pool'] ?? [];
     $backupPools = $mining['backup_pools'] ?? [];
@@ -73,24 +76,24 @@ function buildFarmRuntimeConfig(array $config): array {
                 'coin' => $defaultPool['coin'] ?? null,
                 'url' => $defaultPool['pool'] ?? null,
                 'user' => $defaultPool['wallet'] ?? null,
-                'pass' => $defaultPool['password'] ?? 'x'
+                'pass' => $defaultPool['password'] ?? 'x',
             ] : null,
-            // include backups as-is
         ])),
-        'backup_pools' => array_map(function($p) {
+        'backup_pools' => array_map(function ($p) {
             return [
                 'coin' => $p['coin'] ?? null,
                 'url' => $p['pool'] ?? null,
                 'user' => $p['wallet'] ?? null,
-                'pass' => $p['password'] ?? 'x'
+                'pass' => $p['password'] ?? 'x',
             ];
         }, is_array($backupPools) ? $backupPools : []),
         'overclock' => $config['overclocking'] ?? [],
-        'timezone' => $settings['timezone'] ?? 'UTC'
+        'timezone' => $settings['timezone'] ?? 'UTC',
     ];
 }
 
-function buildFarmRuntimeConfigSh(array $config, string $farmId, string $farmPassword = '', string $serverUrl = ''): string {
+function buildFarmRuntimeConfigSh(array $config, string $farmId, string $farmPassword = '', string $serverUrl = ''): string
+{
     $mining = $config['mining'] ?? [];
     $defaultPool = $mining['default_pool'] ?? [];
     $settings = $config['settings'] ?? [];
@@ -103,7 +106,6 @@ function buildFarmRuntimeConfigSh(array $config, string $farmId, string $farmPas
     if ($serverUrl !== '') {
         $lines[] = 'HIVE_HOST_URL=' . escapeshellarg($serverUrl);
     }
-    // Worker (rig) name — берём из имени фермы
     $workerName = $config['farms'][$farmId]['name'] ?? '';
     if ($workerName !== '') {
         $lines[] = 'WORKER_NAME=' . escapeshellarg($workerName);
@@ -116,165 +118,177 @@ function buildFarmRuntimeConfigSh(array $config, string $farmId, string $farmPas
         $lines[] = 'COIN=' . escapeshellarg($defaultPool['coin'] ?? '');
     }
     $lines[] = 'TIMEZONE=' . escapeshellarg($settings['timezone'] ?? 'UTC');
-    // Enable SSH on the rig to avoid localhost-only binding after reboot
     $lines[] = 'SHELLINABOX_ENABLE=0';
     $lines[] = 'SSH_ENABLE=1';
     $lines[] = 'SSH_PASSWORD_ENABLE=1';
+
     return implode("\n", $lines) . "\n";
 }
 
+$ctx = ['code' => 200, 'body' => ''];
 
-switch ($op) {
-    case 'hello':
-        // Require password match
-        if (!$password || ($config['farms'][$farmId]['password'] ?? null) !== $password) {
-            http_response_code(401);
-            echo json_encode(['status' => 'error', 'message' => 'Invalid credentials']);
-            exit;
-        }
-        // Mark online
-        $config['farms'][$farmId]['status'] = 'online';
-        $config['farms'][$farmId]['last_seen_at'] = gmdate('Y-m-d H:i:s');
-        // Save initial gpu count if provided in hello
-        $gpuCount = intval($rpcParams['gpu_count_amd'] ?? 0) + intval($rpcParams['gpu_count_nvidia'] ?? 0);
-        if ($gpuCount > 0) { $config['farms'][$farmId]['gpu_count'] = $gpuCount; }
-        if (empty($config['farms'][$farmId]['token'])) {
-            $config['farms'][$farmId]['token'] = bin2hex(random_bytes(16));
-        }
-        hive_worker_merge_hello_into_farm($config['farms'][$farmId], $rpcParams);
-        file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
-        farmpulse_app_api_push($config, (string) $farmId);
-        $cfg = buildFarmRuntimeConfig($config);
-        $serverUrl = $rpcParams['server_url'] ?? ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? ''));
-        $cfgSh = buildFarmRuntimeConfigSh($config, (string)$farmId, (string)($config['farms'][$farmId]['password'] ?? ''), (string)$serverUrl);
-        $rpcId = isset($post['id']) ? $post['id'] : 0;
-        $resp = [
-            'jsonrpc' => '2.0',
-            'id' => $rpcId,
-            'result' => [
+$tx = hive_farms_config_transaction($configFile, function (&$config) use ($farmId, $op, $password, $post, $rpcParams, &$ctx) {
+    if (!isset($config['farms'][$farmId])) {
+        $ctx['code'] = 404;
+        $ctx['body'] = json_encode(['status' => 'error', 'message' => 'Farm not found']);
+
+        return false;
+    }
+
+    switch ($op) {
+        case 'hello':
+            if (!$password || ($config['farms'][$farmId]['password'] ?? null) !== $password) {
+                $ctx['code'] = 401;
+                $ctx['body'] = json_encode(['status' => 'error', 'message' => 'Invalid credentials']);
+
+                return false;
+            }
+            $config['farms'][$farmId]['status'] = 'online';
+            $config['farms'][$farmId]['last_seen_at'] = date('Y-m-d H:i:s');
+            $gpuCount = intval($rpcParams['gpu_count_amd'] ?? 0) + intval($rpcParams['gpu_count_nvidia'] ?? 0);
+            if ($gpuCount > 0) {
+                $config['farms'][$farmId]['gpu_count'] = $gpuCount;
+            }
+            if (empty($config['farms'][$farmId]['token'])) {
+                $config['farms'][$farmId]['token'] = bin2hex(random_bytes(16));
+            }
+            hive_worker_merge_hello_into_farm($config['farms'][$farmId], $rpcParams);
+            $cfg = buildFarmRuntimeConfig($config);
+            $serverUrl = $rpcParams['server_url'] ?? ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? ''));
+            $cfgSh = buildFarmRuntimeConfigSh($config, (string) $farmId, (string) ($config['farms'][$farmId]['password'] ?? ''), (string) $serverUrl);
+            $rpcId = isset($post['id']) ? $post['id'] : 0;
+            $resp = [
+                'jsonrpc' => '2.0',
+                'id' => $rpcId,
+                'result' => [
+                    'config' => $cfgSh,
+                    'config_object' => $cfg,
+                    'commands' => [],
+                ],
                 'config' => $cfgSh,
-                'config_object' => $cfg,
-                'commands' => []
-            ],
-            // duplicate top-level for older agents that read at root
-            'config' => $cfgSh
-        ];
-        echo json_encode($resp);
-        break;
+            ];
+            $ctx['body'] = json_encode($resp);
 
-    case 'stats':
-        if (($config['farms'][$farmId]['password'] ?? '') !== ($password ?? '')) {
-            http_response_code(401);
-            echo json_encode(['status' => 'error', 'message' => 'Invalid credentials']);
-            exit;
-        }
-        // Heartbeat + optional command delivery (match agent expectations)
-        $config['farms'][$farmId]['status'] = 'online';
-        $config['farms'][$farmId]['last_seen_at'] = gmdate('Y-m-d H:i:s');
-        hive_worker_merge_stats_into_farm($config['farms'][$farmId], $rpcParams);
-        file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+            return true;
 
-        $rpcId = isset($post['id']) ? $post['id'] : 0;
-        $queue = $config['farms'][$farmId]['commands'] ?? [];
-        if (!empty($queue)) {
-            // Choose last; prefer exec if present
+        case 'stats':
+            if (($config['farms'][$farmId]['password'] ?? '') !== ($password ?? '')) {
+                $ctx['code'] = 401;
+                $ctx['body'] = json_encode(['status' => 'error', 'message' => 'Invalid credentials']);
+
+                return false;
+            }
+            $config['farms'][$farmId]['status'] = 'online';
+            $config['farms'][$farmId]['last_seen_at'] = gmdate('Y-m-d H:i:s');
+            hive_worker_merge_stats_into_farm($config['farms'][$farmId], $rpcParams);
+
+            $rpcId = isset($post['id']) ? $post['id'] : 0;
+            $queue = $config['farms'][$farmId]['commands'] ?? [];
+            if (!empty($queue)) {
+                $normalized = [];
+                foreach ($queue as $c) {
+                    $id = $c['id'] ?? uniqid('cmd_', true);
+                    $cmd = $c['command'] ?? ((($c['type'] ?? '') === 'cmd' && !empty($c['data'])) ? $c['data'] : null);
+                    if (!empty($cmd)) {
+                        $item = ['id' => $id, 'command' => $cmd];
+                        if (isset($c['exec']) && is_string($c['exec']) && $c['exec'] !== '') {
+                            $item['exec'] = $c['exec'];
+                        }
+                        $normalized[] = $item;
+                    }
+                }
+                $chosen = end($normalized);
+                foreach (array_reverse($normalized) as $cand) {
+                    if (($cand['command'] ?? '') === 'exec' && isset($cand['exec'])) {
+                        $chosen = $cand;
+                        break;
+                    }
+                }
+                $result = ['command' => $chosen['command'], 'id' => $chosen['id']];
+                if ($result['command'] === 'exec') {
+                    $result['exec'] = $chosen['exec'] ?? '/hive/sbin/sreboot';
+                }
+                $config['farms'][$farmId]['commands'] = array_values(array_filter($queue, function ($c) use ($chosen) {
+                    return (($c['id'] ?? null) !== $chosen['id']);
+                }));
+                $ctx['body'] = json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => $result]);
+            } else {
+                $ctx['body'] = json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => ['command' => 'OK']]);
+            }
+
+            return true;
+
+        case 'message':
+            $config['farms'][$farmId]['status'] = 'online';
+            $config['farms'][$farmId]['last_seen_at'] = date('Y-m-d H:i:s');
+            $queue = $config['farms'][$farmId]['commands'] ?? [];
             $normalized = [];
             foreach ($queue as $c) {
                 $id = $c['id'] ?? uniqid('cmd_', true);
                 $cmd = $c['command'] ?? ((($c['type'] ?? '') === 'cmd' && !empty($c['data'])) ? $c['data'] : null);
                 if (!empty($cmd)) {
                     $item = ['id' => $id, 'command' => $cmd];
-                    if (isset($c['exec']) && is_string($c['exec']) && $c['exec'] !== '') { $item['exec'] = $c['exec']; }
+                    if (isset($c['exec']) && is_string($c['exec']) && $c['exec'] !== '') {
+                        $item['exec'] = $c['exec'];
+                    }
                     $normalized[] = $item;
                 }
             }
-            $chosen = end($normalized);
-            foreach (array_reverse($normalized) as $cand) {
-                if (($cand['command'] ?? '') === 'exec' && isset($cand['exec'])) { $chosen = $cand; break; }
-            }
-            // Single-command shape (like original Hive): result.command = reboot|exec
-            $result = [ 'command' => $chosen['command'], 'id' => $chosen['id'] ];
-            if ($result['command'] === 'exec') {
-                $result['exec'] = $chosen['exec'] ?? '/hive/sbin/sreboot';
-            } elseif ($result['command'] === 'reboot') {
-                // leave as reboot (agent handles reboot)
-            }
-            echo json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => $result]);
-            // Pop delivered command (loose id match: JSON may store int or string)
-            $chosenId = $chosen['id'] ?? null;
-            $config['farms'][$farmId]['commands'] = array_values(array_filter($queue, function($c) use ($chosenId) {
-                return (string)($c['id'] ?? '') !== (string)$chosenId;
-            }));
-            file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
-        } else {
-            // Always include command key so agent doesn't warn on null
-            echo json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => ['command' => 'OK']]);
-        }
-        farmpulse_app_api_push($config, (string) $farmId);
-        break;
-
-    case 'message':
-        if (($config['farms'][$farmId]['password'] ?? '') !== ($password ?? '')) {
-            http_response_code(401);
-            echo json_encode(['status' => 'error', 'message' => 'Invalid credentials']);
-            exit;
-        }
-        // Treat as heartbeat + deliver queued commands (minimal shape for agent)
-        $config['farms'][$farmId]['status'] = 'online';
-        $config['farms'][$farmId]['last_seen_at'] = gmdate('Y-m-d H:i:s');
-        $queue = $config['farms'][$farmId]['commands'] ?? [];
-        // Normalize to [{id, command, exec?}] and keep original exec if present
-        $normalized = [];
-        foreach ($queue as $c) {
-            $id = $c['id'] ?? uniqid('cmd_', true);
-            $cmd = $c['command'] ?? ((($c['type'] ?? '') === 'cmd' && !empty($c['data'])) ? $c['data'] : null);
-            if (!empty($cmd)) {
-                $item = ['id' => $id, 'command' => $cmd];
-                if (isset($c['exec']) && is_string($c['exec']) && $c['exec'] !== '') {
-                    $item['exec'] = $c['exec'];
+            $rpcId = isset($post['id']) ? $post['id'] : 0;
+            if (!empty($normalized)) {
+                $chosen = end($normalized);
+                foreach (array_reverse($normalized) as $cand) {
+                    if (($cand['command'] ?? '') === 'exec' && isset($cand['exec'])) {
+                        $chosen = $cand;
+                        break;
+                    }
                 }
-                $normalized[] = $item;
-            }
-        }
-        $rpcId = isset($post['id']) ? $post['id'] : 0;
-        if (!empty($normalized)) {
-            // Prefer the last queued command, and prefer exec-type if present
-            $chosen = end($normalized);
-            foreach (array_reverse($normalized) as $cand) {
-                if (($cand['command'] ?? '') === 'exec' && isset($cand['exec'])) { $chosen = $cand; break; }
-            }
-            // Формируем ответ в batch-режиме (наиболее совместимо с агентом)
-            $result = [ 'command' => 'batch', 'confseq' => (int)time() ];
-            $cmdObj = [ 'id' => (int)$chosen['id'], 'command' => $chosen['command'] ];
-            if (($chosen['command'] ?? '') === 'reboot') {
-                // пусть агент сам вызовет ветку reboot)
-                $cmdObj['command'] = 'reboot';
-            } elseif (($chosen['command'] ?? '') === 'exec') {
-                $cmdObj['command'] = 'exec';
-                if (isset($chosen['exec'])) { $cmdObj['exec'] = $chosen['exec']; }
-            }
-            // На случай когда в очереди reboot без exec — добавим явный путь
-            if ($cmdObj['command'] === 'exec' && empty($cmdObj['exec'])) {
-                $cmdObj['exec'] = '/hive/sbin/sreboot';
-            }
-            $result['commands'] = [ $cmdObj ];
-            // Удалим доставленную команду из очереди, чтобы не повторялась
-            $chosenId = $chosen['id'] ?? null;
-            $config['farms'][$farmId]['commands'] = array_values(array_filter($queue, function($c) use ($chosenId) {
-                return (string)($c['id'] ?? '') !== (string)$chosenId;
-            }));
-            file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
-            farmpulse_app_api_push($config, (string) $farmId);
-            echo json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => $result]);
-        } else {
-            echo json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => ['command' => 'OK']]);
-        }
-        break;
+                $result = ['command' => 'batch', 'confseq' => (int) time()];
+                $cmdObj = ['id' => (int) $chosen['id'], 'command' => $chosen['command']];
+                if (($chosen['command'] ?? '') === 'reboot') {
+                    $cmdObj['command'] = 'reboot';
+                } elseif (($chosen['command'] ?? '') === 'exec') {
+                    $cmdObj['command'] = 'exec';
+                    if (isset($chosen['exec'])) {
+                        $cmdObj['exec'] = $chosen['exec'];
+                    }
+                }
+                if ($cmdObj['command'] === 'exec' && empty($cmdObj['exec'])) {
+                    $cmdObj['exec'] = '/hive/sbin/sreboot';
+                }
+                $result['commands'] = [$cmdObj];
+                $config['farms'][$farmId]['commands'] = array_values(array_filter($queue, function ($c) use ($chosen) {
+                    return (($c['id'] ?? null) !== $chosen['id']);
+                }));
+                $ctx['body'] = json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => $result]);
 
-    default:
-        http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => 'Unknown method']);
-        break;
+                return true;
+            }
+            $ctx['body'] = json_encode(['jsonrpc' => '2.0', 'id' => $rpcId, 'result' => ['command' => 'OK']]);
+
+            return false;
+
+        default:
+            $ctx['code'] = 400;
+            $ctx['body'] = json_encode(['status' => 'error', 'message' => 'Unknown method']);
+
+            return false;
+    }
+});
+
+$okOut = ($tx === true && $ctx['body'] !== '') || ($tx === 'skip' && $ctx['body'] !== '');
+if (!$okOut) {
+    $ctx['code'] = $tx === 'lock' ? 503 : 500;
+    if ($tx === 'corrupt') {
+        $ctx['body'] = json_encode(['status' => 'error', 'message' => 'Farm configuration file is corrupted (invalid JSON)']);
+    } elseif ($tx === 'read') {
+        $ctx['body'] = json_encode(['status' => 'error', 'message' => 'Farm configuration file is not readable']);
+    } elseif ($tx === 'lock') {
+        $ctx['body'] = json_encode(['status' => 'error', 'message' => 'Configuration is busy, retry']);
+    } else {
+        $ctx['body'] = json_encode(['status' => 'error', 'message' => 'Failed to update configuration']);
+    }
 }
 
-
+http_response_code($ctx['code']);
+echo $ctx['body'];

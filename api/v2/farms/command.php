@@ -6,13 +6,14 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
+require_once __DIR__ . '/config_io.php';
+
 $configFile = __DIR__ . '/config.json';
-$config = json_decode(@file_get_contents($configFile), true);
-if (!is_array($config)) {
-    $config = ['farms' => []];
-}
-if (!isset($config['farms']) || !is_array($config['farms'])) {
-    $config['farms'] = [];
+$config = hive_farms_config_load($configFile);
+if ($config === null) {
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'Farm configuration unreadable or corrupted']);
+    exit;
 }
 
 $body = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -31,7 +32,7 @@ if (!isset($config['farms'][$farmId])) {
     exit;
 }
 
-$allowed = ['reboot', 'update_password', 'update_name', 'set_ewelink_device'];
+$allowed = ['reboot','update_password','update_name'];
 if (!in_array($action, $allowed, true)) {
     http_response_code(400);
     echo json_encode(['status' => 'error', 'message' => 'Unsupported action']);
@@ -60,7 +61,7 @@ if ($action === 'reboot') {
         exit;
     }
     $config['farms'][$farmId]['password'] = $newPassword;
-    file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+    hive_farms_config_save($configFile, $config);
     echo json_encode(['status' => 'OK']);
     exit;
 } elseif ($action === 'update_name') {
@@ -71,29 +72,7 @@ if ($action === 'reboot') {
         exit;
     }
     $config['farms'][$farmId]['name'] = $newName;
-    file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
-    echo json_encode(['status' => 'OK']);
-    exit;
-} elseif ($action === 'set_ewelink_device') {
-    $deviceId = isset($body['ewelink_device_id']) ? trim((string) $body['ewelink_device_id']) : '';
-    $deviceName = isset($body['ewelink_device_name']) ? trim((string) $body['ewelink_device_name']) : '';
-    if ($deviceId === '') {
-        unset(
-            $config['farms'][$farmId]['ewelink_device_id'],
-            $config['farms'][$farmId]['ewelink_device_name'],
-            $config['farms'][$farmId]['ewelink_device_item_type']
-        );
-    } else {
-        $config['farms'][$farmId]['ewelink_device_id'] = $deviceId;
-        $config['farms'][$farmId]['ewelink_device_name'] = $deviceName;
-        $it = isset($body['ewelink_device_item_type']) ? (int) $body['ewelink_device_item_type'] : 1;
-        $config['farms'][$farmId]['ewelink_device_item_type'] = ($it === 2) ? 2 : 1;
-    }
-    if (!file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT))) {
-        http_response_code(500);
-        echo json_encode(['status' => 'error', 'message' => 'Failed to save configuration']);
-        exit;
-    }
+    hive_farms_config_save($configFile, $config);
     echo json_encode(['status' => 'OK']);
     exit;
 } else {
@@ -106,7 +85,7 @@ if ($action === 'reboot') {
 
 $config['farms'][$farmId]['commands'][] = $cmd;
 
-file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+hive_farms_config_save($configFile, $config);
 
 echo json_encode(['status' => 'OK', 'queued' => $cmd]);
 

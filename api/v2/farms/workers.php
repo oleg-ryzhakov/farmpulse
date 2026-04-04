@@ -9,10 +9,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+require_once __DIR__ . '/config_io.php';
+
 $configFile = __DIR__ . '/config.json';
-$config = json_decode(@file_get_contents($configFile), true);
-if (!is_array($config)) {
-    $config = ['farms' => []];
+$config = hive_farms_config_load($configFile);
+if ($config === null) {
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'Farm configuration unreadable or corrupted']);
+    exit;
 }
 if (!isset($config['farms']) || !is_array($config['farms'])) {
     $config['farms'] = [];
@@ -56,9 +60,6 @@ switch ($method) {
                 'summary_uptime_sec' => $f['summary_uptime_sec'] ?? null,
                 'summary_net_ips' => $f['summary_net_ips'] ?? null,
                 'heat_warning' => $f['heat_warning'] ?? false,
-                'ewelink_device_id' => $f['ewelink_device_id'] ?? null,
-                'ewelink_device_name' => $f['ewelink_device_name'] ?? null,
-                'ewelink_device_item_type' => isset($f['ewelink_device_item_type']) ? (int) $f['ewelink_device_item_type'] : null,
             ]
         ]);
         break;
@@ -75,7 +76,7 @@ switch ($method) {
         $config['farms'][$farmId]['status'] = 'online';
         $config['farms'][$farmId]['last_seen_at'] = gmdate('Y-m-d H:i:s');
 
-        if (file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT))) {
+        if (hive_farms_config_save($configFile, $config)) {
             echo json_encode(["status" => "OK"]);
         } else {
             http_response_code(500);
@@ -87,7 +88,7 @@ switch ($method) {
         // DELETE теперь удаляет ферму целиком
         unset($config['farms'][$farmId]);
 
-        if (file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT))) {
+        if (hive_farms_config_save($configFile, $config)) {
             echo json_encode(["status" => "OK"]);
         } else {
             http_response_code(500);

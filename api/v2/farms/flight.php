@@ -6,9 +6,18 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
+require_once __DIR__ . '/config_io.php';
+
 $configFile = __DIR__ . '/config.json';
-$config = json_decode(@file_get_contents($configFile), true);
-if (!is_array($config)) { $config = ['farms' => []]; }
+$config = hive_farms_config_load($configFile);
+if ($config === null) {
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'Farm configuration unreadable or corrupted']);
+    exit;
+}
+if (!isset($config['farms']) || !is_array($config['farms'])) {
+    $config['farms'] = [];
+}
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
@@ -40,7 +49,7 @@ if ($method === 'DELETE') {
         exit;
     }
     unset($config['farms'][$farmId]['flightsheet']);
-    file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+    hive_farms_config_save($configFile, $config);
     echo json_encode(['status' => 'OK']);
     exit;
 }
@@ -112,7 +121,7 @@ if ($apply) {
     $config['farms'][$farmId]['commands'][] = $enqueued;
 }
 
-file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+hive_farms_config_save($configFile, $config);
 
 echo json_encode(['status' => 'OK', 'flightsheet' => $config['farms'][$farmId]['flightsheet'], 'enqueued' => $enqueued]);
 

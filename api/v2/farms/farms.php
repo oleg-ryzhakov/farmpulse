@@ -9,20 +9,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+require_once __DIR__ . '/config_io.php';
+
 $configFile = __DIR__ . '/config.json';
-$config = json_decode(@file_get_contents($configFile), true);
-if (!is_array($config)) {
-    $config = [];
-}
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-if (!isset($config['farms'])) {
-    $config['farms'] = [];
-}
-
 switch ($method) {
     case 'GET':
+        $config = hive_farms_config_load($configFile);
+        if ($config === null) {
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'Farm configuration unreadable or corrupted']);
+            break;
+        }
+        if (!isset($config['farms']) || !is_array($config['farms'])) {
+            $config['farms'] = [];
+        }
         $farms = [];
         foreach ($config['farms'] as $id => $farm) {
             $farms[] = [
@@ -44,9 +47,6 @@ switch ($method) {
                 'summary_uptime_sec' => $farm['summary_uptime_sec'] ?? null,
                 'summary_net_ips' => $farm['summary_net_ips'] ?? null,
                 'heat_warning' => $farm['heat_warning'] ?? false,
-                'ewelink_device_id' => $farm['ewelink_device_id'] ?? null,
-                'ewelink_device_name' => $farm['ewelink_device_name'] ?? null,
-                'ewelink_device_item_type' => isset($farm['ewelink_device_item_type']) ? (int) $farm['ewelink_device_item_type'] : null,
             ];
         }
         echo json_encode([
@@ -56,6 +56,15 @@ switch ($method) {
         break;
 
     case 'POST':
+        $config = hive_farms_config_load($configFile);
+        if ($config === null) {
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'Farm configuration unreadable or corrupted']);
+            break;
+        }
+        if (!isset($config['farms']) || !is_array($config['farms'])) {
+            $config['farms'] = [];
+        }
         $input = json_decode(file_get_contents('php://input'), true);
         $name = $input['name'] ?? 'New Farm';
         $password = $input['password'] ?? null;
@@ -77,7 +86,7 @@ switch ($method) {
             'last_seen_at' => null
         ];
 
-        if (file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT))) {
+        if (hive_farms_config_save($configFile, $config)) {
             echo json_encode(['status' => 'OK', 'id' => (string)$newId, 'name' => $name]);
         } else {
             http_response_code(500);

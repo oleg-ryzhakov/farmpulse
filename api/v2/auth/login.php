@@ -19,8 +19,15 @@ $body = json_decode($rawBody, true) ?: [];
 $farmId = $body['farm_id'] ?? $body['rig_id'] ?? $body['login'] ?? ($_POST['farm_id'] ?? $_POST['rig_id'] ?? $_POST['login'] ?? null);
 $password = $body['password'] ?? ($_POST['password'] ?? null);
 
+require_once __DIR__ . '/../farms/config_io.php';
+
 $configFile = __DIR__ . '/../farms/config.json';
-$config = json_decode(file_get_contents($configFile), true);
+$config = hive_farms_config_load($configFile);
+if ($config === null) {
+	http_response_code(500);
+	echo json_encode(['error' => 'Server configuration error']);
+	exit;
+}
 
 if (!$farmId || !$password || !isset($config['farms'][$farmId])) {
 	http_response_code(401);
@@ -36,7 +43,7 @@ if (($config['farms'][$farmId]['password'] ?? null) !== $password) {
 
 $token = bin2hex(random_bytes(16));
 $config['farms'][$farmId]['token'] = $token;
-file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+hive_farms_config_save($configFile, $config);
 
 echo json_encode([
 	"access_token" => $token,
